@@ -115,8 +115,10 @@ cl.declare_vars(mode='ceemdan')
 ceemdan_bj = cl.emd_decom(series=series_bj)
 cl.sample_entropy(imfs_df=ceemdan_bj)
 inte_bj = cl.integrate(df=ceemdan_bj,inte_form=[[0,1],[2,3],[4,5],[6,7,8]]) # form may not be the same every time
+cl.declare_vars(mode='ceemdan_se',form='233',epochs=10)
 cl.Hybrid_LSTM(df=inte_bj,redecom='vmd')
 ```
+
 ### Time-saving method
 ```python
 df_bjETS = pd.read_csv(PATH+'data\\BeijingETS.csv',header=0,parse_dates=["date"],
@@ -127,6 +129,7 @@ ceemdan_bj = cl.emd_decom(series=series_bj)
 df_vmd_bj = cl.re_decom(df=ceemdan_bj,redecom_mode='vmd',redecom_list=0) 
 cl.Ensemble_LSTM(df=df_vmd_bj)
 ```
+
 ### Predict the next day
 Set `next_pred` for `cl.Hybrid_LSTM(next_pred=True)`.
 ```python
@@ -136,5 +139,7 @@ or you can try time saving method by `cl.run_predict()`
 ```python
 cl.run_predict(series=series,epochs=1000)
 ```
+
+
 ## Postscript
 If you have any questions, please leave your comment or email me.
