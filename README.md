@@ -21,7 +21,7 @@ pip install vmdpy
 pip install sampen
 pip install tensorflow==2.5.0
 ```
-
+  
 ## Preparation
 ### Help or Example
 You can use the code to call for a guideline or help. It is not recommended to use `cl.run_exmaple()` because the integration way by sample entropy is not the same every time.
@@ -43,7 +43,7 @@ series = cl.declare_path()
 If you want to use anthor folders, you can use `cl.declare_path(path="",figure_path="",log_path="",dataset_name="")` (must be csv file).  
 If you want to use your own data, you can use `cl.declare_path(series=pd.Series)` (must be pd.Series).
 
-
+  
 ## Start to predict
 ### 0.Statistical tests (not necessary)
 The code will ouput the reuslt of ADF test, Ljung-Box Test, Jarque-Bera Test, and plot ACF and PACF figures.
@@ -104,7 +104,7 @@ For hybrid models, you can directly add parameters `redecom='vmd'`.
 ```python
 cl.Hybrid_LSTM(redecom='vmd')
 ```
-
+  
 ## An example of BeijingETS.csv
 ### Hybrid method
 ```python
