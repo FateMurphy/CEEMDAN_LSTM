@@ -45,12 +45,12 @@ If you want to use your own data, you can use `cl.declare_path(series=pd.Series)
 
   
 ## Start to predict
-### 0.Statistical tests (not necessary)
+### 0. Statistical tests (not necessary)
 The code will ouput the reuslt of ADF test, Ljung-Box Test, Jarque-Bera Test, and plot ACF and PACF figures.
 ```python
 cl.statistical_tests()
 ```
-### 1.Declare mode and variables
+### 1. Declare mode and variables
 `Importantly!`, you need to declare decomposition mode and global variables.It is recommended to declare variables first every time you predict or decompose and other operations.  
 Default value:
 `mode='ceemdan'`, Mainly determine the decomposition method  
@@ -63,7 +63,7 @@ Default value:
 cl.declare_vars()
 ```
 
-### 2.Decomposition and Integration
+### 2. Decomposition and Integration
 Choose a method to decompose the original data from `mode='emd'`, `mode='eemd'`, or `mode='ceemdan'` by `cl.declare_vars(mode='')`.
 ```python
 imfs = cl.emd_decom()
@@ -128,5 +128,5 @@ df_vmd_bj = cl.re_decom(df=inte_bj,redecom_mode='vmd',redecom_list=0)
 cl.Ensemble_LSTM(df=df_vmd_bj)
 ```
 
-===
-If you have any questions, please leave your comment or email me
+## Postscript
+If you have any questions, please leave your comment or email me.
