@@ -40,8 +40,8 @@ The default dataset name: cl_sample_dataset (must be csv file)
 ```python
 series = cl.declare_path()
 ```
-If you want to use anthor folders, you can use `cl.declare_path(path="",figure_path="",log_path="",dataset_name="")` (must be csv file)
-If you want to use your own data, you can use `cl.declare_path(series=pd.Series)` (must be pd.Series)
+If you want to use anthor folders, you can use `cl.declare_path(path="",figure_path="",log_path="",dataset_name="")` (must be csv file).  
+If you want to use your own data, you can use `cl.declare_path(series=pd.Series)` (must be pd.Series).
 
 
 ## Start to predict
@@ -53,12 +53,12 @@ cl.statistical_tests()
 ### 1.Declare mode and variables
 `Importantly!`, you need to declare decomposition mode and global variables.It is recommended to declare variables first every time you predict or decompose and other operations.  
 Default value:
-`mode='ceemdan'`, Mainly determine the decomposition method 
-`form=''`, Integration form only effective after integration
-`data_back=30`, The number of previous days related to today
-`periods=100`, The length of the days to forecast
-`epochs=100`, LSTM epochs
-`patience=10`, Patience of adaptive learning rate and early stop, suggesting epochs/10
+`mode='ceemdan'`, Mainly determine the decomposition method  
+`form=''`, Integration form only effective after integration  
+`data_back=30`, The number of previous days related to today  
+`periods=100`, The length of the days to forecast  
+`epochs=100`, LSTM epochs  
+`patience=10`, Patience of adaptive learning rate and early stop, suggesting epochs/10  
 ```python
 cl.declare_vars()
 ```
@@ -87,8 +87,7 @@ cl.Single_LSTM()
 ```
 You can try other methods
 ```python
-cl.declare_vars(mode='ceemdan',form='233',epochs=100) # 
-cl.Single_LSTM()
+cl.Single_LSTM(draw=False,show_model=False)
 cl.Ensemble_LSTM()
 cl.Hybrid_LSTM()
 cl.Multi_pred(run_times=10,ensemble_lstm=True,respective_lstm=True)
@@ -109,7 +108,8 @@ cl.Hybrid_LSTM(redecom='vmd')
 ## An example of BeijingETS.csv
 ### Hybrid method
 ```python
-df_bjETS = pd.read_csv(PATH+'data\\BeijingETS.csv',header=0,parse_dates=["date"], date_parser=lambda x: datetime.strptime(x, "%Y%m%d"))
+df_bjETS = pd.read_csv(PATH+'data\\BeijingETS.csv',header=0,parse_dates=["date"],
+                       date_parser=lambda x: datetime.strptime(x, "%Y%m%d"))
 series_bj = pd.Series(df_bjETS['close'].values,index = df_bjETS['date']).sort_index().astype(float)
 cl.declare_vars(mode='ceemdan')
 ceemdan_bj = cl.emd_decom(series=series_bj)
@@ -119,7 +119,8 @@ cl.Hybrid_LSTM(df=inte_bj,redecom='vmd')
 ```
 ### Time saving method
 ```python
-df_bjETS = pd.read_csv(PATH+'data\\BeijingETS.csv',header=0,parse_dates=["date"], date_parser=lambda x: datetime.strptime(x, "%Y%m%d"))
+df_bjETS = pd.read_csv(PATH+'data\\BeijingETS.csv',header=0,parse_dates=["date"],
+                       date_parser=lambda x: datetime.strptime(x, "%Y%m%d"))
 series_bj = pd.Series(df_bjETS['close'].values,index = df_bjETS['date']).sort_index().astype(float)
 cl.declare_vars(mode='ceemdan',epochs=1000)
 ceemdan_bj = cl.emd_decom(series=series_bj)
