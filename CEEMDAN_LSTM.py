@@ -99,8 +99,8 @@ def guideline():
     print('#2.Declare variables: ')
     print("-------------------------------")
     print("cl.declare_path(path,figure_path,log_path,dataset_name,series)")
-    print("cl.declare_vars(mode,form,data_back,periods,epochs)")
-    print("cl.declare_LSTM_vars(cells,dropout,optimizer_loss,batch_size,validation_split,verbose,shuffle,patience)")
+    print("cl.declare_vars(mode,form,data_back,periods,epochs,patience)")
+    print("cl.declare_LSTM_vars(cells,dropout,optimizer_loss,batch_size,validation_split,verbose,shuffle)")
     print("cl.declare_LSTM_MODEL(model)")
     print("For the details of each variable, use cl.guideline_vars() to call for a help.")
     print()
@@ -147,6 +147,7 @@ def guideline_vars():
     print("DATE_BACK : The number of previous days related to today")
     print("PERIODS : The length of the days to forecast")
     print("EPOCHS : LSTM epochs")
+    print("PATIENCE : Patience of adaptive learning rate and early stop, suggest 1-20")
     print()
     print("cl.declare_LSTM_vars is used to declare following variables:")
     print("These variables are used to control LSTM model")
@@ -158,7 +159,6 @@ def guideline_vars():
     print("VALIDATION_SPLIT : Proportion of validation set to training set, suggest 0-0.2")
     print("VERBOSE : Report of the training process, 0 not displayed, 1 detailed, 2 rough")
     print("SHUFFLE : In the training process, whether to randomly disorder the training set")
-    print("PATIENCE : Patience of adaptive learning rate and early stop, suggest 1-20")
     print()
     print("cl.declare_LSTM_vars is used to set up a keras model independently:")
     print("-------------------------------")
@@ -286,7 +286,7 @@ def declare_path(path=PATH,figure_path=FIGURE_PATH,log_path=LOG_PATH,dataset_nam
         if not isinstance(series, pd.Series): raise ValueError('The inputting series must be pd.Series.')
         else: 
             print('Get input series named:',str(series.name))
-            SERIES = series
+            SERIES = series.sort_index() # sorting
     
     # Load Data for csv file
     else:
@@ -304,7 +304,7 @@ def declare_path(path=PATH,figure_path=FIGURE_PATH,log_path=LOG_PATH,dataset_nam
             if 'date' not in df_ETS.columns or 'close' not in df_ETS.columns: 
                 raise ValueError("Please name the date column and the required price column as 'date' and 'close' respectively.")
             SERIES = pd.Series(df_ETS['close'].values,index = df_ETS['date']) #选择收盘价
-            SERIES = SERIES[::-1].astype(float) # reverse
+            SERIES = SERIES.sort_index() # sorting
 
     # Save the required data to avoid chaanging the original data
     pd.DataFrame.to_csv(SERIES,PATH+'demo_data.csv')
@@ -332,17 +332,21 @@ DATE_BACK = 30
 PERIODS = 100 
 # LSTM epochs
 EPOCHS = 100
+# Patience of adaptive learning rate and early stop, suggest 1-20
+PATIENCE = 10
 
 # Declare model variables
-def declare_vars(mode=MODE,form=FORM,data_back=DATE_BACK,periods=PERIODS,epochs=EPOCHS):
+def declare_vars(mode=MODE,form=FORM,data_back=DATE_BACK,periods=PERIODS,epochs=EPOCHS,patience=PATIENCE):
     print('##################################')
     print('Global Variables')
     print('##################################')
     
     # Change and Check
-    global MODE,FORM,DATE_BACK,PERIODS,EPOCHS
+    global MODE,FORM,DATE_BACK,PERIODS,EPOCHS,PATIENCE
     FORM = str(form)
     MODE,DATE_BACK,PERIODS,EPOCHS = mode.lower(),data_back,periods,epochs
+    if patience != PATIENCE: PATIENCE = patience
+    else: PATIENCE = int(EPOCHS/10)
     check_vars()
 
     # Show
@@ -351,6 +355,7 @@ def declare_vars(mode=MODE,form=FORM,data_back=DATE_BACK,periods=PERIODS,epochs=
     print('DATE_BACK:'+str(DATE_BACK))
     print('PERIODS:'+str(PERIODS))
     print('EPOCHS:'+str(EPOCHS))
+    print('PATIENCE:'+str(PATIENCE))
 
 # Check the type of model variables
 def check_vars():
@@ -362,9 +367,11 @@ def check_vars():
     if not (type(DATE_BACK) == int and DATE_BACK>0):
         raise TypeError('DATE_BACK should be a positive integer rather than %s.'%str(DATE_BACK))
     if not (type(PERIODS) == int and PERIODS>0):
-        raise TypeError('PERIODS should a positive integer rather than %s.'%str(PERIODS))
+        raise TypeError('PERIODS should be a positive integer rather than %s.'%str(PERIODS))
     if not (type(EPOCHS) == int and EPOCHS>0):
-        raise TypeError('EPOCHS should a positive integer rather than %s.'%str(EPOCHS))
+        raise TypeError('EPOCHS should be a positive integer rather than %s.'%str(EPOCHS))
+    if not (type(PATIENCE) == int and PATIENCE>0):
+        raise TypeError('PATIENCE should be a positive integer rather than %s.'%str(PATIENCE))
     if FORM == '' and (MODE in ['emd_se','eemd_se','ceemdan_se']):
         raise ValueError('FORM is not delcared. Please delcare is as form = 233 or "233".')
 
@@ -439,33 +446,30 @@ VALIDATION_SPLIT = 0.1
 VERBOSE = 0
 # In the training process, whether to randomly disorder the training set
 SHUFFLE = True
-# Patience of adaptive learning rate and early stop, suggest 1-20
-PATIENCE = 10
+
 
 # Declare LSTM variables
-def declare_LSTM_vars(cells=CELLS,dropout=DROPOUT,optimizer_loss=OPTIMIZER_LOSS,batch_size=BATCH_SIZE,validation_split=VALIDATION_SPLIT,verbose=VERBOSE,shuffle=SHUFFLE,patience=PATIENCE):
+def declare_LSTM_vars(cells=CELLS,dropout=DROPOUT,optimizer_loss=OPTIMIZER_LOSS,batch_size=BATCH_SIZE,validation_split=VALIDATION_SPLIT,verbose=VERBOSE,shuffle=SHUFFLE):
     print('##################################')
     print('LSTM Model Variables')
     print('##################################')
-    
+    PATIENCE
     # Changepatience=
-    global CELLS,DROPOUT,OPTIMIZER_LOSS,BATCH_SIZE,VALIDATION_SPLIT,VERBOSE,SHUFFLE,PATIENCE
-    CELLS,DROPOUT,OPTIMIZER_LOSS,PATIENCE = cells,dropout,optimizer_loss,patience
+    global CELLS,DROPOUT,OPTIMIZER_LOSS,BATCH_SIZE,VALIDATION_SPLIT,VERBOSE,SHUFFLE
+    CELLS,DROPOUT,OPTIMIZER_LOSS = cells,dropout,optimizer_loss
     BATCH_SIZE,VALIDATION_SPLIT,VERBOSE,SHUFFLE = batch_size,validation_split,verbose,shuffle
 
     # Check
     if not (type(CELLS) == int and CELLS>0): raise TypeError('CELLS should a positive integer.')
     if not (type(DROPOUT) == float and DROPOUT>0 and DROPOUT<1): raise TypeError('DROPOUT should a number between 0 and 1.')
     if not (type(BATCH_SIZE) == int and BATCH_SIZE>0):
-        raise TypeError('BATCH_SIZE float a positive integer.')
+        raise TypeError('BATCH_SIZE should be a positive integer.')
     if not (type(VALIDATION_SPLIT) == float and VALIDATION_SPLIT>0 and VALIDATION_SPLIT<1):
-        raise TypeError('VALIDATION_SPLIT should a number best between 0.1 and 0.4.')
+        raise TypeError('VALIDATION_SPLIT should be a number best between 0.1 and 0.4.')
     if VERBOSE not in [0,1,2]:
-        raise TypeError('VERBOSE must be 0,1,2. The detail level of the training message')
+        raise TypeError('VERBOSE should be 0, 1, or 2. The detail level of the training message')
     if type(SHUFFLE) != bool:
         raise TypeError('SHUFFLE should be True or False.')
-    if not (type(PATIENCE) == int and PATIENCE>0):
-        raise TypeError('PATIENCE float a positive integer.')
     
     # Show
     print('CELLS:'+str(CELLS))
@@ -475,7 +479,6 @@ def declare_LSTM_vars(cells=CELLS,dropout=DROPOUT,optimizer_loss=OPTIMIZER_LOSS,
     print('VALIDATION_SPLIT:'+str(VALIDATION_SPLIT))
     print('VERBOSE:'+str(VERBOSE))
     print('SHUFFLE:'+str(SHUFFLE))
-    print('PATIENCE:'+str(PATIENCE))
 
 # Define the Keras model by model = Sequential() with input shape [DATE_BACK,the number of features]
 LSTM_MODEL = None 
