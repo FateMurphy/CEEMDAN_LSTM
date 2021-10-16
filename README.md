@@ -7,6 +7,7 @@ CEEMDAN_LSTM
   "Zhou, F. T. (2021). Carbon price forecasting based on CEEMDAN and LSTM. Unpublished now."
 
 # Flowchart
+![](https://github.com/FateMurphy/CEEMDAN_LSTM/blob/75f9601497245a1a40d84045ebb3f0db8ad1b253/Hybrid%20CEEMDAN-VMD-LSTM%20predictor%20flowchart.svg)
 
 # Install
   First download `CEEMDAN_LSTM.py` to your computer, and create a new file that can run python。
