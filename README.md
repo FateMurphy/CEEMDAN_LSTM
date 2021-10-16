@@ -124,7 +124,7 @@ df_bjETS = pd.read_csv(PATH+'data\\BeijingETS.csv',header=0,parse_dates=["date"]
 series_bj = pd.Series(df_bjETS['close'].values,index = df_bjETS['date']).sort_index().astype(float)
 cl.declare_vars(mode='ceemdan',epochs=1000)
 ceemdan_bj = cl.emd_decom(series=series_bj)
-df_vmd_bj = cl.re_decom(df=inte_bj,redecom_mode='vmd',redecom_list=0) 
+df_vmd_bj = cl.re_decom(df=ceemdan_bj,redecom_mode='vmd',redecom_list=0) 
 cl.Ensemble_LSTM(df=df_vmd_bj)
 ```
 ### Predict the next day
