@@ -128,4 +128,5 @@ df_vmd_bj = cl.re_decom(df=inte_bj,redecom_mode='vmd',redecom_list=0)
 cl.Ensemble_LSTM(df=df_vmd_bj)
 ```
 
-
+===
+If you have any questions, please leave your comment or email me
