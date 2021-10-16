@@ -11,13 +11,34 @@ First, download `CEEMDAN_LSTM.py` to your computer, and create a new file that c
 ```python
 import CEEMDAN_LSTM as cl
 ```
-If an error occurs, please check the modules that need to be installed.
+If an error occurs, please check the modules that need to be installed. Note if the error is that `pyemd` does not exist, please install `EMD-signal` rather than pyemd module.
 ```python
 pip install datetime
-pip install EMD-signal
+pip install EMD-signal # pyemd
 pip install vmdpy
 pip install sampen
 pip install tensorflow==2.5.0
 ```
 
+## Usage
+### 0.Help or Example
+You can use the code to call for a guideline or help.
+```python
+cl.guideline()
+cl.example()
+```
+
+### 1.Declare the path
+Determine the folder to store dataset and the folder to store output results.
+    The default dataset saving path: D:\\CEEMDAN_LSTM\\
+    The default figures saving path: D:\\CEEMDAN_LSTM\\figures\\
+    The default logs and output saving path: D:\\CEEMDAN_LSTM\\subset\\
+    The default dataset name: cl_sample_dataset (must be csv file)
+```python
+series = cl.declare_path()
+```
+If you want to use anthor folders, you can use `cl.declare_path(path="",figure_path="",log_path="",dataset_name="")` (must be csv file)
+If you want to use your own data, you can use `cl.declare_path(series=pd.Series)` (must be pd.Series)
+
+### 2.Help or Example
   
