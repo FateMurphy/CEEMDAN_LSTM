@@ -2,7 +2,7 @@
 # -*- coding:utf-8 -*-
 # 
 # Created on 2021-10-1 22:37
-# Author: FATE ZHOU
+# Author: ZHOU FEITE
 # 
 
 from __future__ import division, print_function
