@@ -21,24 +21,25 @@ pip install tensorflow==2.5.0
 ```
 
 ## Usage
-### 0.Help or Example
+### 0. Help or Example
 You can use the code to call for a guideline or help.
 ```python
 cl.guideline()
 cl.example()
 ```
 
-### 1.Declare the path
-Determine the folder to store dataset and the folder to store output results.
+### 1. Declare the path
+    Determine the folder to store dataset and the folder to store output results. If it runs successfully, the program will display the picture of the series
     The default dataset saving path: D:\\CEEMDAN_LSTM\\
     The default figures saving path: D:\\CEEMDAN_LSTM\\figures\\
     The default logs and output saving path: D:\\CEEMDAN_LSTM\\subset\\
     The default dataset name: cl_sample_dataset (must be csv file)
+    
 ```python
 series = cl.declare_path()
 ```
 If you want to use anthor folders, you can use `cl.declare_path(path="",figure_path="",log_path="",dataset_name="")` (must be csv file)
 If you want to use your own data, you can use `cl.declare_path(series=pd.Series)` (must be pd.Series)
 
-### 2.Help or Example
+### 2. Help or Example
   
