@@ -2,7 +2,7 @@
 # -*- coding:utf-8 -*-
 # 
 # Created on 2021-10-1 22:37
-# Author: ZHOU FEITE
+# Author: FATE ZHOU
 # 
 
 from __future__ import division, print_function
@@ -21,6 +21,7 @@ print('Importing...', end = '')
 # pip install datetime
 # pip install tensorflow-gpu==2.5.0
 # pip install scikit-learn
+
 
 # import CEEMDAN_LSTM as cl
 
@@ -68,6 +69,9 @@ from sklearn.metrics import mean_absolute_percentage_error # MAPE
 # Keras
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Activation, Dropout, LSTM
+from tensorflow.keras.layers import GRU,Flatten
+#from tcn import TCN # pip install keras-tcn
+
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.utils import plot_model # To use plot_model, you need to install software graphviz
 from tensorflow.python.client import device_lib
@@ -219,6 +223,7 @@ def run_example():
 def run_predict(series,next_pred=True,epochs=1000):
     print('An example of time-saving method is running around 400 seconds.')
     print('##################################')
+    declare_vars(mode='ceemdan') # reset to default value
     df_ceemdan = emd_decom(series=series)
     df_vmd = re_decom(df=df_ceemdan,redecom_mode='vmd',redecom_list=0) 
     global EPOCHS,PATIENCE
@@ -336,7 +341,7 @@ EPOCHS = 100
 PATIENCE = 10
 
 # Declare model variables
-def declare_vars(mode=MODE,form=FORM,data_back=DATE_BACK,periods=PERIODS,epochs=EPOCHS,patience=PATIENCE):
+def declare_vars(mode=MODE,form=FORM,data_back=DATE_BACK,periods=PERIODS,epochs=EPOCHS,patience=None):
     print('##################################')
     print('Global Variables')
     print('##################################')
@@ -345,8 +350,8 @@ def declare_vars(mode=MODE,form=FORM,data_back=DATE_BACK,periods=PERIODS,epochs=
     global MODE,FORM,DATE_BACK,PERIODS,EPOCHS,PATIENCE
     FORM = str(form)
     MODE,DATE_BACK,PERIODS,EPOCHS = mode.lower(),data_back,periods,epochs
-    if patience != PATIENCE: PATIENCE = patience
-    else: PATIENCE = int(EPOCHS/10)
+    if patience is None: PATIENCE = int(EPOCHS/10)
+    else: PATIENCE = patience
     check_vars()
 
     # Show
@@ -366,7 +371,7 @@ def check_vars():
         raise TypeError('FORM should be strings in digit such as 233 or "233" rather than %s.'%str(FORM))
     if not (type(DATE_BACK) == int and DATE_BACK>0):
         raise TypeError('DATE_BACK should be a positive integer rather than %s.'%str(DATE_BACK))
-    if not (type(PERIODS) == int and PERIODS>0):
+    if not (type(PERIODS) == int and PERIODS>=0):
         raise TypeError('PERIODS should be a positive integer rather than %s.'%str(PERIODS))
     if not (type(EPOCHS) == int and EPOCHS>0):
         raise TypeError('EPOCHS should be a positive integer rather than %s.'%str(EPOCHS))
@@ -485,13 +490,10 @@ LSTM_MODEL = None
 
 # Change Kreas model
 def declare_LSTM_MODEL(model=LSTM_MODEL):
-    if model is not None:
-        if not isinstance(model, Sequential): 
-            raise ValueError('The import Keras model is wrong and use cl.LSTM_example() to get an exmaple.')
-        else:
-            print("LSTM_MODEL has changed and start your forecast.")
-            global LSTM_MODEL
-            LSTM_MODEL = model
+    print("LSTM_MODEL has changed to be %s and start your forecast."%model)
+    global LSTM_MODEL
+    LSTM_MODEL = model
+            
 
 # LSTM model example
 def LSTM_example():
@@ -517,8 +519,48 @@ def LSTM_model(shape):
         model.add(Dense(1,activation='tanh'))
         model.compile(loss=OPTIMIZER_LOSS, optimizer='adam')
         return model
+    elif LSTM_MODEL == 'GRU':
+        model = Sequential()
+        model.add(GRU(CELLS*4, input_shape=(shape[1], shape[2]), activation='tanh', return_sequences=True))
+        model.add(Dropout(DROPOUT))
+        model.add(GRU(CELLS*2,activation='tanh',return_sequences=True))
+        model.add(Dropout(DROPOUT))
+        model.add(GRU(CELLS,activation='tanh',return_sequences=False))
+        model.add(Dropout(DROPOUT))
+        model.add(Dense(1,activation='tanh'))
+        model.compile(loss=OPTIMIZER_LOSS, optimizer='adam')
+        return model
+    elif LSTM_MODEL == 'DNN':
+        model = Sequential()
+        model.add(Dense(CELLS*4, input_shape=(shape[1], shape[2]), activation='tanh'))
+        model.add(Dropout(DROPOUT))
+        model.add(Dense(CELLS*2,activation='tanh'))
+        model.add(Dropout(DROPOUT))
+        model.add(Flatten())
+        model.add(Dense(CELLS,activation='tanh'))
+        model.add(Dropout(DROPOUT))
+        model.add(Dense(1,activation='tanh'))
+        model.compile(loss=OPTIMIZER_LOSS, optimizer='adam')
+        return model
+    elif LSTM_MODEL == 'BPNN':
+        model = Sequential()
+        model.add(Dense(CELLS*4, input_shape=(shape[1], shape[2]), activation='tanh'))
+        model.add(Dropout(DROPOUT))
+        model.add(Flatten())
+        model.add(Dense(1,activation='tanh'))
+        model.compile(loss=OPTIMIZER_LOSS, optimizer='adam')
+        return model
     else: return LSTM_MODEL
 
+"""
+# TCN
+model = Sequential()
+model.add(TCN(CELLS*4, input_shape=(shape[1], shape[2]), activation='tanh'))
+model.add(Dropout(DROPOUT))
+model.add(Dense(1,activation='tanh'))
+model.compile(loss=OPTIMIZER_LOSS, optimizer='adam')
+return model
+"""
 # Other variables
 # -------------------------------
 # Method for unified normalization only 0,1,2,3
@@ -574,16 +616,18 @@ def emd_decom(series=None,trials=10,re_decom=False,re_imf=0,draw=True):
         # Save figure
         fig.align_labels()
         plt.tight_layout()
-        if (re_decom==False): plt.savefig(FIGURE_PATH+file_name+str.upper(MODE)+' Result.svg', bbox_inches='tight')
-        else: plt.savefig(FIGURE_PATH+'IMF'+str(re_imf)+' '+str.upper(MODE)+' Re-decomposition Result.svg', bbox_inches='tight')
+        if file_name == '':
+            if (re_decom==False): plt.savefig(FIGURE_PATH+file_name+str.upper(MODE)+' Result.svg', bbox_inches='tight')
+            else: plt.savefig(FIGURE_PATH+'IMF'+str(re_imf)+' '+str.upper(MODE)+' Re-decomposition Result.svg', bbox_inches='tight')
         plt.show()
     
     # Save data
     imfs_df = pd.DataFrame(imfs_emd.T)
     imfs_df.columns = ['imf'+str(i) for i in range(imfs_num)]
-    if (re_decom==False): 
-        pd.DataFrame.to_csv(imfs_df,PATH+file_name+MODE+'_data.csv')
-        print(str.upper(MODE)+' finished, check the dataset: ',PATH+file_name+MODE+'_data.csv')
+    if file_name == '':
+        if (re_decom==False): 
+            pd.DataFrame.to_csv(imfs_df,PATH+file_name+MODE+'_data.csv')
+            print(str.upper(MODE)+' finished, check the dataset: ',PATH+file_name+MODE+'_data.csv')
 
     return imfs_df # pd.DataFrame
 
@@ -624,7 +668,7 @@ def sample_entropy(imfs_df=None): # imfs_df is pd.DataFrame
     plt.xlabel('IMFs')
     plt.ylabel('Sample Entropy')
     plt.legend()
-    fig.savefig(FIGURE_PATH+'Sample Entropy of %s IMFs.svg'%(file_name), bbox_inches='tight')
+    if file_name == '': fig.savefig(FIGURE_PATH+'Sample Entropy of %s IMFs.svg'%(file_name), bbox_inches='tight')
     plt.show()
 
 # Integrate IMFs and Residue
@@ -693,7 +737,7 @@ def integrate(df=None,inte_form=[[0,1],[2,3,4],[5,6,7]]):
     # Save Co-IMFs
     df_co_emd = pd.DataFrame(co_imfs).T
     df_co_emd.columns=imfs_name
-    pd.DataFrame.to_csv(df_co_emd,PATH+file_name+MODE+'_se'+form+'_data.csv')
+    if file_name == '': pd.DataFrame.to_csv(df_co_emd,PATH+file_name+MODE+'_se'+form+'_data.csv')
     print('Integration finished, check the dataset: ',PATH+file_name+MODE+'_se'+form+'_data.csv')
     if file_name != '': return df_co_emd
 
@@ -758,8 +802,9 @@ def re_decom(df=None,redecom_mode='ceemdan',redecom_list=[0],draw=True,trials=10
     # Save data and revert MODE
     MODE =  tmp_mode # for saving 
     redecom_file_name = '_'+redecom_file_name # such as _rce0
-    print('Re-decomposition finished, check the dataset: ',PATH+file_name+MODE+FORM+redecom_file_name+'_data.csv')
-    pd.DataFrame.to_csv(df_redecom,PATH+file_name+MODE+FORM+redecom_file_name+'_data.csv') # ceemdan_se233_rce0_data.csv
+    if file_name == '':
+        print('Re-decomposition finished, check the dataset: ',PATH+file_name+MODE+FORM+redecom_file_name+'_data.csv')
+        pd.DataFrame.to_csv(df_redecom,PATH+file_name+MODE+FORM+redecom_file_name+'_data.csv') # ceemdan_se233_rce0_data.csv
 
     return df_redecom # pd.DataFrame
 
@@ -806,9 +851,10 @@ def vmd_decom(series=None,alpha=2000,tau=0,K=5,DC=0,init=1,tol=1e-7,re_decom=Tru
     # Save data
     imfs_df = pd.DataFrame(imfs_vmd.T)
     imfs_df.columns = ['imf'+str(i) for i in range(imfs_num)]
-    if (re_decom==False): 
-        pd.DataFrame.to_csv(imfs_df,PATH+file_name+'vmd_data.csv')
-        print('VMD finished, check the dataset: ',PATH+file_name+'vmd_data.csv')
+    if file_name == '':
+        if (re_decom==False): 
+            pd.DataFrame.to_csv(imfs_df,PATH+file_name+'vmd_data.csv')
+            print('VMD finished, check the dataset: ',PATH+file_name+'vmd_data.csv')
 
     return imfs_df # pd.DataFrame
 
@@ -823,7 +869,7 @@ def evl(y_test, y_pred, scale='0 to 1'): # MSE and MAE are different on differen
     r2 = r2_score(y_test, y_pred)
     rmse = mean_squared_error(y_test, y_pred, squared=False)
     mae = mean_absolute_error(y_test, y_pred)
-    mape = mean_absolute_percentage_error(y_test, y_pred)
+    mape = mean_absolute_percentage_error(y_test, y_pred)*100
     print('##################################')
     print('Model Evaluation with scale of',scale)
     print('##################################')
@@ -837,9 +883,9 @@ def evl(y_test, y_pred, scale='0 to 1'): # MSE and MAE are different on differen
 # -------------------------------
 # IMPORTANT!!! it may cause some error when the input format is wrong.
 # Method here is used to determine the Unified normalization, use declare_uni_method(method=METHOD) to declare.
-def create_dateback(df,uni=False):
+def create_dateback(df,uni=False,ahead=1):
     # Normalize for DataFrame
-    if uni and METHOD != 0: # Unified normalization
+    if uni and METHOD != 0 and ahead == 1: # Unified normalization
         # Check input and load dataset
         if SERIES is None: raise ValueError('SERIES is not declared. Please declare it by series=cl.declare_path(path=PATH).')
         if MODE not in ['emd','eemd','ceemdan']: raise ValueError('MODE must be emd, eemd, ceemdan if you want to try unified normalization method.')
@@ -890,9 +936,10 @@ def create_dateback(df,uni=False):
     
     # Create dateback
     dataX, dataY = [], []
-    for i in range(len(trainY)-DATE_BACK):
+    ahead = ahead - 1
+    for i in range(len(trainY)-DATE_BACK-ahead):
         dataX.append(np.array(trainX[i:(i+DATE_BACK)]))
-        dataY.append(np.array(trainY[i+DATE_BACK]))
+        dataY.append(np.array(trainY[i+DATE_BACK+ahead]))
     return np.array(dataX),np.array(dataY),scalarY,np.array(trainX[-DATE_BACK:])
 
 # Plot original data and forecasting data
@@ -919,20 +966,25 @@ def plot_all(lstm_type,pred_ans):
 # Declare LSTM forecasting function
 # Have declared LSTM model variables at Section 0 before
 # -------------------------------
-def LSTM_pred(data=None,draw=True,uni=False,show_model=True,train_set=None,next_pred=False):
+def LSTM_pred(data=None,draw=True,uni=False,show_model=True,train_set=None,next_pred=False,ahead=1):
     # Divide the training and test set
     if train_set is None:
-        trainX,trainY,scalarY,next_trainX = create_dateback(data,uni)
+        trainX,trainY,scalarY,next_trainX = create_dateback(data,uni=uni,ahead=ahead)
     else: trainX,trainY,scalarY,next_trainX = train_set[0],train_set[1],train_set[2],train_set[3]
     if uni==True and next_pred==True: raise ValueError('Next pred does not support unified normalization.')
-    x_train,x_test = trainX[:-PERIODS],trainX[-PERIODS:]
-    y_train,y_test = trainY[:-PERIODS],trainY[-PERIODS:]
-    
-    # Convert to tensor 
-    train_X = x_train.reshape((x_train.shape[0], x_train.shape[1], x_train.shape[2]))
-    test_X = x_test.reshape((x_test.shape[0], x_train.shape[1], x_test.shape[2]))
+
+    if PERIODS == 0:
+        train_X = trainX
+        y_train = trainY
+    else:
+        x_train,x_test = trainX[:-PERIODS],trainX[-PERIODS:]
+        y_train,y_test = trainY[:-PERIODS],trainY[-PERIODS:]
+        # Convert to tensor 
+        train_X = x_train.reshape((x_train.shape[0], x_train.shape[1], x_train.shape[2]))
+        test_X = x_test.reshape((x_test.shape[0], x_test.shape[1], x_test.shape[2]))
 
     # Build and train the model
+    # print('trainX:\n',train_X[-1:])
     print('\nInput Shape: (%d,%d)\n'%(train_X.shape[1],train_X.shape[2]))
     model = LSTM_model(train_X.shape)
     if show_model: model.summary() # The summary of layers and parameters
@@ -942,29 +994,31 @@ def LSTM_pred(data=None,draw=True,uni=False,show_model=True,train_set=None,next_
                         verbose=VERBOSE, shuffle=SHUFFLE, callbacks=[EarlyStop,Reduce])
 
     # Plot the model structure
-    plot_model(model,to_file=FIGURE_PATH+'model.png',show_shapes=True)
+    #plot_model(model,to_file=FIGURE_PATH+'model.png',show_shapes=True)
 
     # Predict
-    pred_test = model.predict(test_X)
+    if PERIODS != 0:
+        pred_test = model.predict(test_X)
+        # Evaluate model with scale 0 to 1
+        evl(y_test, pred_test) 
+    else: pred_test = np.array([])
+
     if next_pred:# predict tomorrow not in test set
-        next_ans = model.predict(next_trainX.reshape((1, x_train.shape[1], x_train.shape[2])))
+        next_ans = model.predict(next_trainX.reshape((1, trainX.shape[1], trainX.shape[2])))
         pred_test = np.append(pred_test,next_ans)
     pred_test = pred_test.ravel().reshape(-1,1)
 
-    # Evaluate model with scale 0 to 1
-    evl(y_test, pred_test[0:PERIODS]) 
-    
     # De-normalize 
     # IMPORTANT!!! It may produce some negative data impact evaluating
     if isinstance(scalarY, MinMaxScaler):
         test_pred = scalarY.inverse_transform(pred_test)
-        test_y = scalarY.inverse_transform(y_test)
+        if PERIODS != 0: test_y = scalarY.inverse_transform(y_test)
     else:     
         test_pred = pred_test*scalarY['scalar']+scalarY['min']
-        test_y = y_test*scalarY['scalar']+scalarY['min']
+        if PERIODS != 0:test_y = y_test*scalarY['scalar']+scalarY['min']
     
     # Plot 
-    if draw:
+    if draw and PERIODS != 0:
         # determing the output name of figures
         fig_name = ''
         if isinstance(data,pd.Series): 
@@ -1001,7 +1055,7 @@ def LSTM_pred(data=None,draw=True,uni=False,show_model=True,train_set=None,next_
 # Single LSTM Forecasting without CEEMDAN
 # ------------------------------- 
 # It uses LSTM directly for prediction wiht input_shape=[DATE_BACK,1]
-def Single_LSTM(series=None,draw=True,uni=False,show_model=True,next_pred=False):
+def Single_LSTM(series=None,draw=True,uni=False,show_model=True,next_pred=False,ahead=1):
     print('==============================================================================================')
     print('This is Single LSTM Forecasting running...')
     print('==============================================================================================')
@@ -1014,7 +1068,7 @@ def Single_LSTM(series=None,draw=True,uni=False,show_model=True,next_pred=False)
     
     # Forecast and save result
     start = time.time()
-    test_pred = LSTM_pred(data=input_series,draw=draw,uni=uni,show_model=show_model,next_pred=next_pred)
+    test_pred = LSTM_pred(data=input_series,draw=draw,uni=uni,show_model=show_model,next_pred=next_pred,ahead=ahead)
     end = time.time()
     df_pred = pd.DataFrame(test_pred)
     pd.DataFrame.to_csv(df_pred,LOG_PATH+file_name+'single_pred.csv')
@@ -1036,7 +1090,7 @@ def Single_LSTM(series=None,draw=True,uni=False,show_model=True,next_pred=False)
 # Ensemble LSTM Forecasting with 3 Co-IMFs
 # ------------------------------- 
 # It uses LSTM directly for prediction wiht input_shape=[DATE_BACK,the number of features]
-def Ensemble_LSTM(df=None,draw=True,uni=False,show_model=True,next_pred=False):
+def Ensemble_LSTM(df=None,draw=True,uni=False,show_model=True,next_pred=False,ahead=1):
     print('==============================================================================================')
     print('This is Ensemble LSTM Forecasting running...')
     print('==============================================================================================')
@@ -1052,29 +1106,30 @@ def Ensemble_LSTM(df=None,draw=True,uni=False,show_model=True,next_pred=False):
 
     # Forecast
     start = time.time()
-    test_pred = LSTM_pred(data=input_df,draw=draw,uni=uni,show_model=show_model,next_pred=next_pred)
+    test_pred = LSTM_pred(data=input_df,draw=draw,uni=uni,show_model=show_model,next_pred=next_pred,ahead=ahead)
     end = time.time()
     df_pred = pd.DataFrame(test_pred)
     pd.DataFrame.to_csv(df_pred,LOG_PATH+file_name+'ensemble_'+MODE+FORM+'_pred.csv')
     
     # Evaluate model 
-    if draw and file_name == '': plot_all('Ensemble',test_pred[0:PERIODS])  # plot chart to campare
-    df_evl = evl(input_df['sum'][-PERIODS:].values,test_pred[0:PERIODS],scale='input df') 
-    print('Running time: %.3fs'%(end-start))
-    df_evl.append(end-start)
-    df_evl = pd.DataFrame(df_evl).T #['R2','RMSE','MAE','MAPE','Time']
-    pd.DataFrame.to_csv(df_evl,LOG_PATH+file_name+'ensemble_'+MODE+FORM+'_log.csv',index=False,header=0,mode='a') # log record
-    print('Ensemble LSTM Forecasting finished, check the logs',LOG_PATH+file_name+'ensemble_'+MODE+FORM+'_log.csv')
-    if next_pred: 
-        print('##################################')
-        print('Today is',input_df['sum'][-1:].values,'but predict as',df_pred[-2:-1].values)
-        print('Next day is',df_pred[-1:].values)
-    if file_name != '': return df_pred
+    if PERIODS != 0:
+        if draw and file_name == '': plot_all('Ensemble',test_pred[0:PERIODS])  # plot chart to campare
+        df_evl = evl(input_df['sum'][-PERIODS:].values,test_pred[0:PERIODS],scale='input df') 
+        print('Running time: %.3fs'%(end-start))
+        df_evl.append(end-start)
+        df_evl = pd.DataFrame(df_evl).T #['R2','RMSE','MAE','MAPE','Time']
+        if next_pred: 
+            print('##################################')
+            print('Today is',input_df['sum'][-1:].values,'but predict as',df_pred[-2:-1].values)
+            print('Next day is',df_pred[-1:].values)
+        pd.DataFrame.to_csv(df_evl,LOG_PATH+file_name+'ensemble_'+MODE+FORM+'_log.csv',index=False,header=0,mode='a') # log record
+        print('Ensemble LSTM Forecasting finished, check the logs',LOG_PATH+file_name+'ensemble_'+MODE+FORM+'_log.csv')
+    return df_pred
 
 # Respective LSTM Forecasting for each Co-IMF
 # ------------------------------- 
 # It uses LSTM to predict each IMFs respectively input_shape=[DATE_BACK,1]
-def Respective_LSTM(df=None,draw=True,uni=False,show_model=True,next_pred=False):
+def Respective_LSTM(df=None,draw=True,uni=False,show_model=True,next_pred=False,ahead=1):
     print('==============================================================================================')
     print('This is Respective LSTM Forecasting running...')
     print('==============================================================================================')
@@ -1094,7 +1149,7 @@ def Respective_LSTM(df=None,draw=True,uni=False,show_model=True,next_pred=False)
         print('==============================================================================================')
         print(str.upper(MODE)+'--IMF'+str(i))
         print('==============================================================================================')
-        test_pred = LSTM_pred(data=input_df[col_name+str(i)],draw=draw,uni=uni,show_model=show_model,next_pred=next_pred)
+        test_pred = LSTM_pred(data=input_df[col_name+str(i)],draw=draw,uni=uni,show_model=show_model,next_pred=next_pred,ahead=ahead)
         data_pred.append(test_pred.ravel())
     end = time.time()
 
@@ -1104,21 +1159,22 @@ def Respective_LSTM(df=None,draw=True,uni=False,show_model=True,next_pred=False)
     pd.DataFrame.to_csv(df_pred,LOG_PATH+file_name+'respective_'+MODE+FORM+'_pred.csv')
 
     # Evaluate model 
-    res_pred = df_pred.T.sum()
-    if draw and file_name == '': plot_all('Respective',res_pred[:PERIODS])  # plot chart to campare
-    if file_name == '': input_df['sum'] = SERIES.values # add a column for sum data
-    elif 'sum' not in input_df.columns: input_df['sum'] = input_df.T.sum().values 
-    df_evl = evl(input_df['sum'][-PERIODS:].values,res_pred[:PERIODS],scale='input df') 
-    print('Running time: %.3fs'%(end-start))
-    df_evl.append(end-start)
-    df_evl = pd.DataFrame(df_evl).T #['R2','RMSE','MAE','MAPE','Time']
-    pd.DataFrame.to_csv(df_evl,LOG_PATH+file_name+'respective_'+MODE+FORM+'_log.csv',index=False,header=0,mode='a') # log record
-    print('Respective LSTM Forecasting finished, check the logs',LOG_PATH+file_name+'respective_'+MODE+FORM+'_log.csv')
-    if next_pred: 
-        print('##################################')
-        print('Today is',input_df['sum'][-1:].values,'but predict as',res_pred[-2:-1].values)
-        print('Next day is',res_pred[-1:].values)
-    if file_name != '': return df_pred
+    if PERIODS != 0:
+        res_pred = df_pred.T.sum()
+        if draw and file_name == '': plot_all('Respective',res_pred[:PERIODS])  # plot chart to campare
+        if file_name == '': input_df['sum'] = SERIES.values # add a column for sum data
+        elif 'sum' not in input_df.columns: input_df['sum'] = input_df.T.sum().values 
+        df_evl = evl(input_df['sum'][-PERIODS:].values,res_pred[:PERIODS],scale='input df') 
+        print('Running time: %.3fs'%(end-start))
+        df_evl.append(end-start)
+        df_evl = pd.DataFrame(df_evl).T #['R2','RMSE','MAE','MAPE','Time']
+        if next_pred: 
+            print('##################################')
+            print('Today is',input_df['sum'][-1:].values,'but predict as',res_pred[-2:-1].values)
+            print('Next day is',res_pred[-1:].values)
+        pd.DataFrame.to_csv(df_evl,LOG_PATH+file_name+'respective_'+MODE+FORM+'_log.csv',index=False,header=0,mode='a') # log record
+        print('Respective LSTM Forecasting finished, check the logs',LOG_PATH+file_name+'respective_'+MODE+FORM+'_log.csv')
+    return df_pred
 
 # Multiple predictions 
 # ------------------------------- 
@@ -1131,7 +1187,7 @@ class HiddenPrints: # used to hide the print
         sys.stdout.close()
         sys.stdout = self._original_stdout
 
-def Multi_pred(df=None,run_times=10,uni_nor=False,single_lstm=False,ensemble_lstm=False,respective_lstm=False,hybrid_lstm=False,redecom=None):
+def Multi_pred(df=None,run_times=10,uni_nor=False,single_lstm=False,ensemble_lstm=False,respective_lstm=False,hybrid_lstm=False,redecom=None,ahead=1):
     print('Multiple predictions of '+str.upper(MODE)+FORM+' is running...')
     input_df,file_name = check_dataset(df,input_form='df',use_series=True,uni_nor=uni_nor) # include check_vars()
     if file_name == '': input_series = None
@@ -1139,10 +1195,10 @@ def Multi_pred(df=None,run_times=10,uni_nor=False,single_lstm=False,ensemble_lst
     start = time.time()
     with HiddenPrints():
         for i in range(run_times):
-            if single_lstm: Single_LSTM(series=input_series,draw=False,uni=uni_nor)
-            if ensemble_lstm: Ensemble_LSTM(df=df,draw=False,uni=uni_nor)
-            if respective_lstm: Respective_LSTM(df=df,draw=False,uni=uni_nor)
-            if hybrid_lstm: Hybrid_LSTM(df=df,draw=False,redecom=redecom)
+            if single_lstm: Single_LSTM(series=input_series,draw=False,uni=uni_nor,ahead=ahead)
+            if ensemble_lstm: Ensemble_LSTM(df=df,draw=False,uni=uni_nor,ahead=ahead)
+            if respective_lstm: Respective_LSTM(df=df,draw=False,uni=uni_nor,ahead=ahead)
+            if hybrid_lstm: Hybrid_LSTM(df=df,draw=False,redecom=redecom,ahead=ahead)
     end = time.time()
     print('Multiple predictions completed, taking %.3fs'%(end-start))
     print('Please check the logs in: '+LOG_PATH)
@@ -1152,7 +1208,7 @@ def Multi_pred(df=None,run_times=10,uni_nor=False,single_lstm=False,ensemble_lst
 # Please use cl.declare_vars() to determine variables.
 #==============================================================================================
 
-def Hybrid_LSTM(df=None,draw=True,enlarge=10,redecom=None,next_pred=False):
+def Hybrid_LSTM(df=None,draw=True,enlarge=10,redecom=None,next_pred=False,ahead=1):
     print('==============================================================================================')
     print('This is Hybrid LSTM Forecasting running...')
     print('==============================================================================================')
@@ -1164,7 +1220,7 @@ def Hybrid_LSTM(df=None,draw=True,enlarge=10,redecom=None,next_pred=False):
     # Respective method first
     start = time.time()
     with HiddenPrints():
-        df_res_pred = Respective_LSTM(df=input_df,draw=False,next_pred=next_pred) # include checking
+        df_res_pred = Respective_LSTM(df=input_df,draw=False,next_pred=next_pred,show_model=False,ahead=ahead) # include checking
 
     # initialize some variables
     global EPOCHS,PATIENCE,FORM
@@ -1172,7 +1228,7 @@ def Hybrid_LSTM(df=None,draw=True,enlarge=10,redecom=None,next_pred=False):
     if 'co-imf0' in df_res_pred.columns: col_name = 'co-imf'
     else: col_name = 'imf'
     next_trainX_row = df_res_pred[-1:].copy(deep=True)
-    df_res_pred = df_res_pred[:PERIODS]
+    if PERIODS != 0: df_res_pred = df_res_pred[:PERIODS]
 
     # Load result of the respective method
     if file_name == '':
@@ -1184,29 +1240,39 @@ def Hybrid_LSTM(df=None,draw=True,enlarge=10,redecom=None,next_pred=False):
     else: df_emd = input_df[input_df.columns.difference(['sum'])].copy(deep=True)
 
     # Show respective method result
-    res_pred = df_res_pred.T.sum().values
     print('\nRespective method result:')
-    df_evl = evl(input_df['sum'][-PERIODS:].values,res_pred,scale='input df') 
+    res_pred = df_res_pred.T.sum().values
+    if PERIODS != 0: df_evl = evl(input_df['sum'][-PERIODS:].values,res_pred,scale='input df') 
+    else: print('Tomorrow is',res_pred,'of '+FORM)
     print('Hybrid LSTM Forecasting is still running...')
 
     # VMD-Ensemble LSTM predict for IMF0 or Co-IMF0
+    redecom_name = ''
     if redecom is not None: # only re-decompse IMF0 or Co-IMF0
+        redecom_name = '_'+redecom
         with HiddenPrints():
             df_redecom = re_decom(df=input_df,redecom_mode=redecom,redecom_list=0,draw=False,imfs_num=10)
             vmd_input = df_redecom[[col_name+'0-rv'+str(i) for i in range(10)]]
             vmd_input['sum'] = df_emd[col_name+'0']
-            df_vmd = Ensemble_LSTM(df=vmd_input,draw=False,next_pred=next_pred)
-            tmp_imf0 = df_res_pred[col_name+'0'].copy(deep=True)
-            df_res_pred[col_name+'0'] = df_vmd[0:PERIODS].values
-            next_trainX_row[col_name+'0'] = df_vmd[-1:].values
-
-        #df_evl = evl(df_emd['imf0'][-PERIODS:],df_vmd,scale='IMF0') # result of IMF0
-        res_vmd_pred = df_res_pred.T.sum().values
+            df_vmd = Ensemble_LSTM(df=vmd_input,draw=False,next_pred=next_pred,show_model=False,ahead=ahead)
+        next_trainX_row[col_name+'0'] = df_vmd[-1:].values
         print('\nVMD method result:')
-        df_evl_vmd = evl(input_df['sum'][-PERIODS:].values,res_vmd_pred,scale='input df') # result of overall
+        if PERIODS != 0:
+            df_res_pred[col_name+'0'] = df_vmd[0:PERIODS].values
+            res_vmd_pred = df_res_pred.T.sum().values
+            #df_evl = evl(df_emd['imf0'][-PERIODS:],df_vmd,scale='IMF0') # result of IMF0
+            df_evl_vmd = evl(input_df['sum'][-PERIODS:].values,res_vmd_pred,scale='input df') # result of overall
+            end_vmd = time.time()
+            print('Running time: %.3fs'%(end_vmd-start))
+            df_evl_vmd.append(end_vmd-start)
+            df_evl_vmd = pd.DataFrame(df_evl_vmd).T #['R2','RMSE','MAE','MAPE','Time']
+            pd.DataFrame.to_csv(df_evl_vmd,LOG_PATH+file_name+'respective_'+MODE+FORM+redecom_name+'_log.csv',index=False,header=0,mode='a') # log record
+            df_res_add = df_res_pred.copy(deep=True)
+            df_res_add.append(next_trainX_row,ignore_index=True)
+            df_res_add = df_res_add.sum(axis=1)
+            pd.DataFrame.to_csv(df_res_add,LOG_PATH+file_name+'respective_'+MODE+FORM+redecom_name+'_pred.csv') # pred record
+        else:  print('Tomorrow is ',next_trainX_row.T.sum().values,' of '+FORM)
         print('Hybrid LSTM Forecasting is still running...')
-        df_evl_vmd = pd.DataFrame(df_evl_vmd).T #['R2','RMSE','MAE','MAPE']
-        pd.DataFrame.to_csv(df_evl_vmd,LOG_PATH+file_name+'respective_'+MODE+FORM+'_vmd_log.csv',index=False,header=0,mode='a') # log record
 
     # Normalize
     df_res_pred.columns = df_emd.columns
@@ -1232,28 +1298,30 @@ def Hybrid_LSTM(df=None,draw=True,enlarge=10,redecom=None,next_pred=False):
         dataY.append(np.array(trainY[i+DATE_BACK]))
     next_trainX_row = (next_trainX_row-df_emd.min())/rate
     next_trainX = np.row_stack((trainX[-DATE_BACK:],next_trainX_row))
-    if next_pred: print('\nnext_trainX:',next_trainX)
+    #if next_pred: print('\nnext_trainX:',next_trainX)
 
     # Ensemble method 
-    test_pred = LSTM_pred(data=None,show_model=False,draw=draw,train_set=[np.array(dataX),np.array(dataY),scalarY,next_trainX],next_pred=next_pred)
+    test_pred = LSTM_pred(data=None,show_model=False,draw=draw,ahead=ahead,train_set=[np.array(dataX),np.array(dataY),scalarY,next_trainX],next_pred=next_pred)
     end = time.time()
-    df_pred = pd.DataFrame(test_pred)
-    pd.DataFrame.to_csv(df_pred,LOG_PATH+file_name+'hybrid_'+MODE+FORM+'_pred.csv')
-
-    # Evaluate model 
     EPOCHS,PATIENCE = int(EPOCHS/enlarge),int(PATIENCE/enlarge)
-    if draw and file_name == '': plot_all('Hybrid',test_pred[0:PERIODS])  # plot chart to campare
-    df_evl = evl(input_df['sum'][-PERIODS:].values,test_pred[0:PERIODS],scale='input df') 
-    print('Running time: %.3fs'%(end-start))
-    df_evl.append(end-start)
-    df_evl = pd.DataFrame(df_evl).T #['R2','RMSE','MAE','MAPE','Time']
-    pd.DataFrame.to_csv(df_evl,LOG_PATH+file_name+'hybrid_'+MODE+FORM+'_log.csv',index=False,header=0,mode='a') # log record
-    print('Hybrid LSTM Forecasting finished, check the logs',LOG_PATH+file_name+'hybrid_'+MODE+FORM+'_log.csv')
+    df_pred = pd.DataFrame(test_pred)
+    if PERIODS == 0: pd.DataFrame.to_csv(df_pred,LOG_PATH+FORM+redecom_name+'_next_pred.csv',mode='a')
+    else:
+        # Evaluate model 
+        pd.DataFrame.to_csv(df_pred,LOG_PATH+file_name+'hybrid_'+MODE+FORM+redecom_name+'_pred.csv')
+        if draw and file_name == '': plot_all('Hybrid',test_pred[0:PERIODS])  # plot chart to campare
+        df_evl = evl(input_df['sum'][-PERIODS:].values,test_pred[0:PERIODS],scale='input df') 
+        print('Running time: %.3fs'%(end-start))
+        df_evl.append(end-start)
+        df_evl = pd.DataFrame(df_evl).T #['R2','RMSE','MAE','MAPE','Time']
+        pd.DataFrame.to_csv(df_evl,LOG_PATH+file_name+'hybrid_'+MODE+FORM+redecom_name+'_log.csv',index=False,header=0,mode='a') # log record
+        print('Hybrid LSTM Forecasting finished, check the logs',LOG_PATH+file_name+'hybrid_'+MODE+FORM+redecom_name+'_log.csv')
     if next_pred: 
+        print('Running time: %.3fs'%(end-start))
         print('##################################')
         print('Today is',input_df['sum'][-1:].values,'but predict as',df_pred[-2:-1].values)
         print('Next day is',df_pred[-1:].values)
-    if file_name != '': return df_pred
+    return df_pred
 
 
 # 7.Statistical Tests
@@ -1355,6 +1423,185 @@ def plot_acf_pacf(series=None):
     plt.tight_layout() 
     plt.show()
 
+# 8.Forecasting of SVR LASSO BPNN 
+# Please use cl.declare_vars() to determine variables.
+#==============================================================================================
+
+import math
+from sklearn.svm import SVR
+from sklearn.linear_model import Lasso
+from sklearn.model_selection import cross_val_score,GridSearchCV
+
+# SVR
+def SVR_pred(data=None,gstimes=5,draw=True,ahead=1):
+    # Divide the training and test set
+    start = time.time()
+    trainX,trainY,scalarY,next_trainX = create_dateback(data,ahead=ahead)
+    trainX = trainX.reshape((trainX.shape[0], trainX.shape[1]))
+    x_train,x_test = trainX[:-PERIODS],trainX[-PERIODS:]
+    y_train,y_test = trainY[:-PERIODS],trainY[-PERIODS:]
+
+    # Grid Search of K-Fold CV
+    # logspace(a,b,N)Divide the interval from the a power of 10 to the b power of 10 into N parts
+    C_range = np.logspace(-2, 10, 13)
+    gamma_range = np.logspace(-9, 3, 13)
+    best_gamma,best_C = 0,0
+    for i in range(gstimes):
+        param_grid = dict(gamma=gamma_range, C=C_range)
+        grid = GridSearchCV(SVR(), param_grid=param_grid, cv=10)
+        grid.fit(x_train, y_train)
+        print('Iteration',i)
+        print('Best parameters:', grid.best_params_)
+        if best_gamma == grid.best_params_['gamma'] and best_C == grid.best_params_['C']: break
+        best_gamma=grid.best_params_['gamma']
+        best_C=grid.best_params_['C']
+        gamma_range = np.append(np.linspace(best_gamma/10,best_gamma*0.9,9),np.linspace(best_gamma,best_gamma*10,10)).ravel()
+        C_range = np.append(np.linspace(best_C/10,best_C*0.9,9),np.linspace(best_C,best_C*10,10)).ravel()
+
+    # Predict
+    clf = SVR(kernel='rbf', gamma=best_gamma ,C=best_C)
+    clf.fit(x_train, y_train)
+    y_pred = clf.predict(x_test)
+    end = time.time()
+
+    # De-normalize and Evaluate
+    test_pred = scalarY.inverse_transform(y_pred.reshape(y_pred.shape[0],1))
+    test_y = scalarY.inverse_transform(y_test)
+    evl(test_pred, test_y)
+    print('Running time: %.3fs'%(end-start))
+
+    # Plot observation figures
+    if draw:
+        fig = plt.figure(figsize=(5,2))
+        plt.plot(test_y)
+        plt.plot(test_pred)
+        plt.title('SVR forecasting result')
+        #plt.savefig(FIGURE_PATH+fig_name+' LSTM forecasting result.svg', bbox_inches='tight')
+        plt.show()
+
+# DM test # Author: John Tsang
+def dm_test(actual_lst, pred1_lst, pred2_lst, h = 1, crit="MSE", power = 2):
+    # Routine for checking errors
+    def error_check():
+        rt = 0
+        msg = ""
+        # Check if h is an integer
+        if (not isinstance(h, int)):
+            rt = -1
+            msg = "The type of the number of steps ahead (h) is not an integer."
+            return (rt,msg)
+        # Check the range of h
+        if (h < 1):
+            rt = -1
+            msg = "The number of steps ahead (h) is not large enough."
+            return (rt,msg)
+        len_act = len(actual_lst)
+        len_p1  = len(pred1_lst)
+        len_p2  = len(pred2_lst)
+        # Check if lengths of actual values and predicted values are equal
+        if (len_act != len_p1 or len_p1 != len_p2 or len_act != len_p2):
+            rt = -1
+            msg = "Lengths of actual_lst, pred1_lst and pred2_lst do not match."
+            return (rt,msg)
+        # Check range of h
+        if (h >= len_act):
+            rt = -1
+            msg = "The number of steps ahead is too large."
+            return (rt,msg)
+        # Check if criterion supported
+        if (crit != "MSE" and crit != "MAPE" and crit != "MAD" and crit != "poly"):
+            rt = -1
+            msg = "The criterion is not supported."
+            return (rt,msg)  
+        # Check if every value of the input lists are numerical values
+        from re import compile as re_compile
+        comp = re_compile("^\d+?\.\d+?$")  
+        def compiled_regex(s):
+            """ Returns True is string is a number. """
+            if comp.match(s) is None:
+                return s.isdigit()
+            return True
+        for actual, pred1, pred2 in zip(actual_lst, pred1_lst, pred2_lst):
+            is_actual_ok = compiled_regex(str(abs(actual)))
+            is_pred1_ok = compiled_regex(str(abs(pred1)))
+            is_pred2_ok = compiled_regex(str(abs(pred2)))
+            if (not (is_actual_ok and is_pred1_ok and is_pred2_ok)):  
+                msg = "An element in the actual_lst, pred1_lst or pred2_lst is not numeric."
+                rt = -1
+                return (rt,msg)
+        return (rt,msg)
+    
+    # Error check
+    error_code = error_check()
+    # Raise error if cannot pass error check
+    if (error_code[0] == -1):
+        raise SyntaxError(error_code[1])
+        return
+    # Import libraries
+    from scipy.stats import t
+    import collections
+    
+    # Initialise lists
+    e1_lst,e2_lst,d_lst = [],[],[]
+    
+    # convert every value of the lists into real values
+    actual_lst = pd.Series(actual_lst).apply(lambda x: float(x)).tolist()
+    pred1_lst = pd.Series(pred1_lst).apply(lambda x: float(x)).tolist()
+    pred2_lst = pd.Series(pred2_lst).apply(lambda x: float(x)).tolist()
+    
+    # Length of lists (as real numbers)
+    T = float(len(actual_lst))
+    
+    # construct d according to crit
+    if (crit == "MSE"):
+        for actual,p1,p2 in zip(actual_lst,pred1_lst,pred2_lst):
+            e1_lst.append((actual - p1)**2)
+            e2_lst.append((actual - p2)**2)
+        for e1, e2 in zip(e1_lst, e2_lst):
+            d_lst.append(e1 - e2)
+    elif (crit == "MAD"):
+        for actual,p1,p2 in zip(actual_lst,pred1_lst,pred2_lst):
+            e1_lst.append(abs(actual - p1))
+            e2_lst.append(abs(actual - p2))
+        for e1, e2 in zip(e1_lst, e2_lst):
+            d_lst.append(e1 - e2)
+    elif (crit == "MAPE"):
+        for actual,p1,p2 in zip(actual_lst,pred1_lst,pred2_lst):
+            e1_lst.append(abs((actual - p1)/actual))
+            e2_lst.append(abs((actual - p2)/actual))
+        for e1, e2 in zip(e1_lst, e2_lst):
+            d_lst.append(e1 - e2)
+    elif (crit == "poly"):
+        for actual,p1,p2 in zip(actual_lst,pred1_lst,pred2_lst):
+            e1_lst.append(((actual - p1))**(power))
+            e2_lst.append(((actual - p2))**(power))
+        for e1, e2 in zip(e1_lst, e2_lst):
+            d_lst.append(e1 - e2)    
+    
+    # Mean of d        
+    mean_d = pd.Series(d_lst).mean()
+    
+    # Find autocovariance and construct DM test statistics
+    def autocovariance(Xi, N, k, Xs):
+        autoCov = 0
+        T = float(N)
+        for i in np.arange(0, N-k):
+              autoCov += ((Xi[i+k])-Xs)*(Xi[i]-Xs)
+        return (1/(T))*autoCov
+    gamma = []
+    for lag in range(0,h):
+        gamma.append(autocovariance(d_lst,len(d_lst),lag,mean_d)) # 0, 1, 2
+    V_d = (gamma[0] + 2*sum(gamma[1:]))/T
+    DM_stat=V_d**(-0.5)*mean_d
+    harvey_adj=((T+1-2*h+h*(h-1)/T)/T)**(0.5)
+    DM_stat = harvey_adj*DM_stat
+    # Find p-value
+    p_value = 2*t.cdf(-abs(DM_stat), df = T - 1)
+    
+    # Construct named tuple for return
+    dm_return = collections.namedtuple('dm_return', 'DM p_value')
+    rt = dm_return(DM = DM_stat, p_value = p_value)
+    return rt
 
 # Appendix if main run example
 #==============================================================================================
