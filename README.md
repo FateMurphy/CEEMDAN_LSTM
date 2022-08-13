@@ -5,7 +5,7 @@ CEEMDAN_LSTM is a Python project for decomposition-integration forecasting model
 Carbon price forecasting based on CEEMDAN and LSTM, Applied Energy, 2022, Volume 311, 118601, ISSN 0306-2619.)](https://doi.org/10.1016/j.apenergy.2022.118601.)
 
 ## Flowchart
-![](https://github.com/FateMurphy/CEEMDAN_LSTM/blob/938a00538b4cdf0abe26be7022129b7cb2852c0e/figure/Hybrid%20CEEMDAN-VMD-LSTM%20predictor%20flowchart.svg)
+![](https://github.com/FateMurphy/CEEMDAN_LSTM/blob/main/figure/Hybrid%20CEEMDAN-VMD-LSTM%20predictor%20flowchart.svg)
 
 ## Install
 First, download `CEEMDAN_LSTM.py` to your computer, and create a new file that can run python. If you can use Jupyter, you can directly download `CEEMDAN LSTM of CarbonPrice.ipynb` at the same time and follow the steps inside to complete the prediction.
