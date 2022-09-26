@@ -1,146 +1,135 @@
 CEEMDAN_LSTM
 ===
+Thanks for everyone's support and advice. I recently made a major update to the code, and now you can install the module directly using pip. Feel free to email me if you have any questions or error reports.
 ## Background 
-CEEMDAN_LSTM is a Python project for decomposition-integration forecasting models based on EMD methods and LSTM. It is a relatively imperfect module but beginners can quickly use it to make a decomposition-integration prediction by `CEEMDAN`, Complete Ensemble Empirical Mode Decomposition with Adaptive Noise [(Torres et al. 2011)](https://ieeexplore.ieee.org/abstract/document/5947265/), and `LSTM`, Long Short-Term Memory recurrent neural network [(Hochreiter and Schmidhuber, 1997)](https://ieeexplore.ieee.org/abstract/document/6795963). If you use or refer to the content of this project, please cite paper: [(F. Zhou, Z. Huang, C. Zhang,
+CEEMDAN_LSTM is a Python module for decomposition-integration forecasting models based on EMD methods and LSTM. It aims at helping beginners quickly make a decomposition-integration forecasting by `CEEMDAN`, Complete Ensemble Empirical Mode Decomposition with Adaptive Noise [(Torres et al. 2011)](https://ieeexplore.ieee.org/abstract/document/5947265/), and `LSTM`, Long Short-Term Memory recurrent neural network [(Hochreiter and Schmidhuber, 1997)](https://ieeexplore.ieee.org/abstract/document/6795963). If you use or refer to the content of this module, please cite paper: [(F. Zhou, Z. Huang, C. Zhang,
 Carbon price forecasting based on CEEMDAN and LSTM, Applied Energy, 2022, Volume 311, 118601, ISSN 0306-2619.)](https://doi.org/10.1016/j.apenergy.2022.118601.)
-
-## Flowchart
+### Flowchart
 ![](https://github.com/FateMurphy/CEEMDAN_LSTM/blob/main/figure/Hybrid%20CEEMDAN-VMD-LSTM%20predictor%20flowchart.svg)
-### This program is an in-sample prediction with some look-ahead bias.
-## Install
-First, download `CEEMDAN_LSTM.py` to your computer, and create a new file that can run python. If you can use Jupyter, you can directly download `CEEMDAN LSTM of CarbonPrice.ipynb` at the same time and follow the steps inside to complete the prediction.
+#### Note, as it decomposes the entire series first, there is some look-ahead bias.
 
+## Install
+### (1) PyPi (recommended)
+The quickest way to install package is through pip.
+```python
+pip install CEEMDAN_LSTM
+```
+### (2) From package
+Download the package `CEEMDAN_LSTM-1.1a0.tar.gz` by click `Code` -> `Download ZIP`. After unzipping, move the package where you like.
+```python
+pip install .(your file path)/CEEMDAN_LSTM-1.1a0.tar.gz
+```
+### (3) From source
+If you want to modify the code, you should download the code and build package yourself. The source is publicaly available and hosted on GitHub: https://github.com/FateMurphy/CEEMDAN_LSTM. To download the code you can either go to the source code page and click `Code` -> `Download ZIP`, or use git command line.  
+After modify the code, you can install the modified package by using command line:
+```python
+python setup.py install
+```
+Or, you can link to the path for the convenient modification, eg. `sys.path.append(.your file path/)`, and then import.
+
+## Import and quickly predict
 ```python
 import CEEMDAN_LSTM as cl
-```
-If an error occurs, please check the modules that need to be installed. Note if the error is that `pyemd` does not exist, please install `EMD-signal` rather than pyemd module.
-
-```python
-pip install datetime
-pip install EMD-signal # pyemd
-pip install vmdpy
-pip install sampen
-pip install tensorflow==2.5.0
-```
-  
-## Preparation
-### Help or Example
-You can use the code to call for a guideline or help. It is not recommended to use `cl.run_exmaple()` because the integration way by sample entropy is not the same every time.
-```python
-cl.guideline()
-cl.guideline_vars()
-cl.example()
+cl.quick_keras_predict(data=None) # default dataset: sse_index.csv
 ```
 
-### Declare the path
-Determine folders to store datasets and output results. The folder will be created automatically when the code is run for the first time. Please download `cl_sample_dataset.csv` and put it into the declared folder. If it runs successfully, the program will display a picture of the series.  
-The default dataset saving path: D:\\CEEMDAN_LSTM\\  
-The default figures saving path: D:\\CEEMDAN_LSTM\\figures\\  
-The default logs and output saving path: D:\\CEEMDAN_LSTM\\subset\\  
-The default dataset name: cl_sample_dataset (must be csv file)    
+## Help and example
+You can use the code to call for a help. You can copy the code from the output of `cl.show_keras_example()` to run forecasting and help you learn more about the code.
 ```python
-series = cl.declare_path()
+cl.help()
+cl.show_keras_example()
+cl.show_keras_example_model()
+cl.details_keras_predict(data=None)
 ```
-If you want to use anthor folders, you can use `cl.declare_path(path="",figure_path="",log_path="",dataset_name="")` (must be csv file).  
-If you want to use your own data, you can use `cl.declare_path(series=pd.Series)` (must be pd.Series).
 
-  
-## Start to predict
+## Start to Forecast
+Take Class: keras_predictor() as an example.
+### Brief summary and forecast
+```python
+cl.statis_tests()
+kr = cl.keras_predictor()
+df_result = kr.hybrid_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
+```
+
 ### 0. Statistical tests (not necessary)
-The code will ouput the reuslt of ADF test, Ljung-Box Test, Jarque-Bera Test, and plot ACF and PACF figures.
+The code will ouput the reuslt of ADF test, Ljung-Box Test, Jarque-Bera Test, and plot ACF and PACF figures to evaluate stationarity, autocorrelation, and normality.
 ```python
-cl.statistical_tests()
-```
-### 1. Declare mode and variables
-`Importantly!`, you need to declare decomposition mode and global variables.It is recommended to declare variables first every time you predict or decompose and other operations.  
-Default value:
-`mode='ceemdan'`, Mainly determine the decomposition method  
-`form=''`, Integration form only effective after integration  
-`data_back=30`, The number of previous days related to today  
-`periods=100`, The length of the days to forecast  
-`epochs=100`, LSTM epochs  
-`patience=10`, Patience of adaptive learning rate and early stop, suggesting epochs/10  
-```python
-cl.declare_vars()
+cl.statis_tests()
 ```
 
-### 2. Decomposition and Integration
-Choose a method to decompose the original data from `mode='emd'`, `mode='eemd'`, or `mode='ceemdan'` by `cl.declare_vars(mode='')`.
+### 1.Declare the parameters
+Note, when declare the PATH, folders will be created automatically, inculding the figure and log folders.
 ```python
-imfs = cl.emd_decom()
+kr = cl.keras_predictor(PATH=None, FORECAST_HORIZONS=30, FORECAST_LENGTH=30, KERAS_MODEL='GRU', 
+                        DECOM_MODE='CEEMDAN', INTE_LIST=None, REDECOM_LIST={'co-imf0':'vmd'},
+                        NEXT_DAY=False, DAY_AHEAD=1, NOR_METHOD='minmax', FIT_METHOD='add', 
+                        USE_TPU=False , **kwargs))
 ```
-Calculate sample entropy
+| HyperParameters | Description | 
+| :-----| :----- | 
+|PATH               |the saving path of figures and logs, eg. 'D:/CEEMDAN_LSTM/'|
+|FORECAST_HORIZONS  |the length of each input row(x_train.shape), which means the number of previous days related to today, also called Timestep, Forecast_horizons, or Sliding_windows_length in some papers|
+|FORECAST_LENGTH    |the length of the days to forecast (test set)|
+|KERAS_MODEL        |the Keras model, eg. 'GRU', 'LSTM', 'DNN', 'BPNN', or model = Sequential()|
+|DECOM_MODE         |the decomposition method, eg.'EMD', 'VMD', 'CEEMDAN'|
+|INTE_LIST          |the integration list, eg. pd.Dataframe, (int) 3, (str) '233', (list) [0,0,1,1,1,2,2,2], ...|
+|REDECOM_LIST       |the re-decomposition list, eg. '{'co-imf0':'vmd', 'co-imf1':'emd'}', pd.DataFrame|
+|NEXT_DAY           |set True to only predict next out-of-sample value|
+|DAY_AHEAD          |define to forecast n days' ahead, eg. 0, 1, 2 (default int 1)|
+|NOR_METHOD         |the normalizing method, eg. 'minmax'-MinMaxScaler, 'std'-StandardScaler, otherwise without normalization|
+|FIT_METHOD         |the fitting method to stablize the forecasting result (not necessarily useful), eg. 'add', 'ensemble'|
+|USE_TPU            |change Keras model to TPU model (for google Colab)|
+
+| Keras Parameters | Description (more details refer to https://keras.io) | 
+| :-----| :----- | 
+|epochs             |training epochs/iterations, eg. 30-1000|
+|dropout            |dropout rate of 3 dropout layers, eg. 0.2-0.5|
+|units              |the units of network layers, which (3 layers) will set to 4*units, 2*units, units, eg. 4-32|
+|activation         |activation function, all layers will be the same, eg. 'tanh', 'relu'|
+|batch_size         |training batch_size for parallel computing, eg. 4-128|
+|shuffle            |whether randomly disorder the training set during training process, eg. True, False|
+|verbose            |report of training process, eg. 0 not displayed, 1 detailed, 2 rough|
+|valid_split        |proportion of validation set during training process, eg. 0.1-0.2|
+|opt                |network optimizer, eg. 'adam', 'sgd'|
+|opt_lr             |optimizer learning rate, eg. 0.001-0.1|
+|opt_loss           |optimizer loss, eg. 'mse','mae','mape','hinge', refer to https://keras.io/zh/losses/.|
+|opt_patience       |optimizer patience of adaptive learning rate, eg. 10-100|
+|stop_patience      |early stop patience, eg. 10-100|
+
+### 2. Forecast
+You can try the following forecasting methods. Note, `kr.` is the class defined in step 1, necessary for the code.
 ```python
-cl.sample_entropy()
+df_result = kr.single_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
+# df_result = kr.ensemble_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
+# df_result = kr.respective_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
+# df_result = kr.hybrid_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
+# df_result = kr.multiple_predict(data, run_times=10, predict_method='single', save_each_result=False)
 ```
-Integrate subsequences, where form represents the integration way.
+| Forecast Method | Description | 
+| :-----| :----- | 
+|Single Method      |Use Keras model to directly forecast with vector input|
+|Ensemble Method    |Use decomposition-integration Keras model to directly forecast with matrix input|
+|Respective Method  |Use decomposition-integration Keras model to respectively forecast each IMFs with vector input|
+|Hybrid Method      |Use the ensemble method to forecast high-frequency IMF and the respective method for other IMFs.|
+|Multiple Method    |Multiple run of above method|
+|Rolling Method     |Rolling run of above method to avoid the look-ahead bias, but take a long long time|
+
+### 3. Validate 
+#### (1) Plot heatmap
+You need to install `seaborn` first, and the input should be 2D-array.
 ```python
-form = [[0,1],[2,3,4],[5,6,7]]
-cl.integrate(inte_form=form) 
+cl.plot_heatmap(data, corr_method='pearson', fig_path=None)
+```
+#### (2) Diebold-Mariano-Test (DM test)
+Dm test will output the DM test statistics and its p-value. You can refer to https://github.com/johntwk/Diebold-Mariano-Test.
+```python
+rt = cl.dm_test(actual_lst, pred1_lst, pred2_lst, h=1, crit="MSE", power=2)
 ```
 
-### 3. Forecast
-Before forecasting, it is recommended to redeclare the variables. Variable `form` you can get from integration.
-There are many methods to choose, including `single`, `ensemble`, `respective`, `hybrid`, and `mutiple`.
+### 4. Next-day Forecast
+Set `NEXT_DAY=True`.
 ```python
-cl.declare_vars(mode='ceemdan',form='233',epochs=100) # 
-cl.Single_LSTM()
+kr = cl.keras_predictor(NEXT_DAY=True)
+df_result = kr.hybrid_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
+# df_result = kr.rolling_keras_predict(data, predict_method='single', save_each_result=False)
 ```
-You can try other methods
-```python
-cl.Single_LSTM(draw=False,show_model=False)
-cl.Ensemble_LSTM()
-cl.Hybrid_LSTM()
-cl.Multi_pred(run_times=10,ensemble_lstm=True,respective_lstm=True)
-```
-
-### 4. Re-decomposition
-After the first decomposition above, some sub-sequences are still difficult to predict, so they can be decomposed again.
-```python
-df_redecom = cl.re_decom(redecom_mode='vmd',redecom_list=[0]) 
-df_input['sum'] = series.values
-cl.Ensemble_LSTM(df=df_redecom,show_model=False)
-```
-For hybrid models, you can directly add parameters `redecom='vmd'`.
-```python
-cl.Hybrid_LSTM(redecom='vmd')
-```
-  
-## An example of BeijingETS.csv
-### Hybrid method
-```python
-df_bjETS = pd.read_csv(PATH+'data\\BeijingETS.csv',header=0,parse_dates=["date"],
-                       date_parser=lambda x: datetime.strptime(x, "%Y%m%d"))
-series_bj = pd.Series(df_bjETS['close'].values,index = df_bjETS['date']).sort_index().astype(float)
-cl.declare_vars(mode='ceemdan')
-ceemdan_bj = cl.emd_decom(series=series_bj)
-cl.sample_entropy(imfs_df=ceemdan_bj)
-inte_bj = cl.integrate(df=ceemdan_bj,inte_form=[[0,1],[2,3],[4,5],[6,7,8]]) # form may not be the same every time
-cl.declare_vars(mode='ceemdan_se',form='233',epochs=10)
-cl.Hybrid_LSTM(df=inte_bj,redecom='vmd')
-```
-
-### Time-saving method
-```python
-df_bjETS = pd.read_csv(PATH+'data\\BeijingETS.csv',header=0,parse_dates=["date"],
-                       date_parser=lambda x: datetime.strptime(x, "%Y%m%d"))
-series_bj = pd.Series(df_bjETS['close'].values,index = df_bjETS['date']).sort_index().astype(float)
-cl.declare_vars(mode='ceemdan',epochs=1000)
-ceemdan_bj = cl.emd_decom(series=series_bj)
-df_vmd_bj = cl.re_decom(df=ceemdan_bj,redecom_mode='vmd',redecom_list=0) 
-cl.Ensemble_LSTM(df=df_vmd_bj)
-```
-
-### Predict the next day
-Set `next_pred` for `cl.Hybrid_LSTM(next_pred=True)`.
-```python
-cl.Hybrid_LSTM(next_pred=True)
-```
-or you can try time saving method by `cl.run_predict()`
-```python
-cl.run_predict(series=series,epochs=1000)
-```
-
-
-## Postscript
-If you have any questions, please leave your comment or email me.
