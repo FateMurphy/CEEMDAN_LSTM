@@ -57,7 +57,7 @@ Take Class: keras_predictor() as an example.
 ### Brief summary and forecast
 ```python
 data = cl.load_dataset()
-series = data['close']
+series = data['close'] # choose a DataFrame column 
 cl.statis_tests(series)
 kr = cl.keras_predictor()
 df_result = kr.hybrid_keras_predict(data=series, show_data=True, show_model=True, plot_result=True, save_result=True)
