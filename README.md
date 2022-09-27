@@ -20,9 +20,9 @@ The quickest way to install package is through pip.
 pip install CEEMDAN_LSTM
 ```
 ### (2) From package
-Download the package `CEEMDAN_LSTM-1.1a0.tar.gz` by click `Code` -> `Download ZIP`. After unzipping, move the package where you like.
+Download the package `CEEMDAN_LSTM-1.2a0.tar.gz` by click `Code` -> `Download ZIP`. After unzipping, move the package where you like.
 ```python
-pip install .(your file path)/CEEMDAN_LSTM-1.1a0.tar.gz
+pip install .(your file path)/CEEMDAN_LSTM-1.2a0.tar.gz
 ```
 ### (3) From source
 If you want to modify the code, you should download the code and build package yourself. The source is publicaly available and hosted on GitHub: https://github.com/FateMurphy/CEEMDAN_LSTM. To download the code you can either go to the source code page and click `Code` -> `Download ZIP`, or use git command line.  
