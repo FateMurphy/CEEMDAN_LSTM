@@ -37,6 +37,11 @@ Or, you can link to the path for the convenient modification, eg. `sys.path.appe
 import CEEMDAN_LSTM as cl
 cl.quick_keras_predict(data=None) # default dataset: sse_index.csv
 ```
+#### Load dataset
+```python
+data = cl.load_dataset()
+# data = pd.read_csv(your_file_path + its_name + '.csv', header=0, index_col=['date'], parse_dates=['date'])
+```
 
 ## Help and example
 You can use the code to call for a help. You can copy the code from the output of `cl.show_keras_example()` to run forecasting and help you learn more about the code.
@@ -140,3 +145,10 @@ kr = cl.keras_predictor(NEXT_DAY=True)
 df_result = kr.hybrid_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
 # df_result = kr.rolling_keras_predict(data, predict_method='single', save_each_result=False)
 ```
+## Discussion
+### 1. Look-ahead bias
+As the predictor will decompose the entire series first before splitting the training and test set, there is a look-ahead bias. It is still an issue about how to avoid the look-ahead bias.
+### 2. VMD decompose
+The vmdpy module can only decompose the even-numbered length time series. When forecasting an odd-numbered length one, this module will delete the oldest data point. It is still an issue how to modify VMD decompose. Moreover, selecting the K parameters is important for the VMD method, and hence, I will add some methods to choose a suitable K, such as OVMD, REI, SampEn, and so on.
+### 3. Rolling forecasting 
+Rolling forecasting costs a lot of time. Like a 30-forecast-length prediction, it will run 30 times cl.hybrid_keras_predict(), so I am not sure if it is really effective or not.
