@@ -51,9 +51,11 @@ cl.details_keras_predict(data=None)
 Take Class: keras_predictor() as an example.
 ### Brief summary and forecast
 ```python
-cl.statis_tests()
+data = cl.load_dataset()
+series = data['close']
+cl.statis_tests(series)
 kr = cl.keras_predictor()
-df_result = kr.hybrid_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
+df_result = kr.hybrid_keras_predict(data=series, show_data=True, show_model=True, plot_result=True, save_result=True)
 ```
 
 ### 0. Statistical tests (not necessary)
