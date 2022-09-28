@@ -33,7 +33,7 @@ python setup.py install
 Or, you can link to the path for the convenient modification, eg. `sys.path.append(.your file path/)`, and then import.
 
 ## Import and quickly predict
-When data=None, it will use the default dataset of Shanghai Securities Composite Index. If you want to load your dataset, please see next the part and set `data=data`.
+When `data=None`, it will use the default dataset of Shanghai Securities Composite Index. If you want to load your dataset, please see next the part and set `data=data`.
 ```python
 import CEEMDAN_LSTM as cl
 cl.quick_keras_predict(data=None) # default dataset: sse_index.csv
