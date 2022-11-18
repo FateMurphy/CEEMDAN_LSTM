@@ -1,10 +1,7 @@
 CEEMDAN_LSTM
 ===
 GitHub: https://github.com/FateMurphy/CEEMDAN_LSTM  
-Future work: 
-(1) multiple rolling forecsating
-(2) out-of-sample rolling forecsating
-(3) sklearn_predictor
+Future work: sklearn_predictor
 
 ## Background 
 CEEMDAN_LSTM is a Python module for decomposition-integration forecasting models based on EMD methods and LSTM. It aims at helping beginners quickly make a decomposition-integration forecasting by `CEEMDAN`, Complete Ensemble Empirical Mode Decomposition with Adaptive Noise [(Torres et al. 2011)](https://ieeexplore.ieee.org/abstract/document/5947265/), and `LSTM`, Long Short-Term Memory recurrent neural network [(Hochreiter and Schmidhuber, 1997)](https://ieeexplore.ieee.org/abstract/document/6795963). If you use or refer to the content of this module, please cite paper: [(F. Zhou, Z. Huang, C. Zhang,
@@ -33,12 +30,11 @@ python setup.py install
 Or, you can link to the path for the convenient modification, eg. `sys.path.append(.your file path/)`, and then import.
 
 ## Import and quickly predict
-When `data=None`, it will use the default dataset of Shanghai Securities Composite Index. If you want to load your dataset, please see next the part and set `data=data`.
 ```python
 import CEEMDAN_LSTM as cl
 cl.quick_keras_predict(data=None) # default dataset: sse_index.csv
 ```
-#### Load your dataset
+#### Load dataset
 ```python
 data = cl.load_dataset()
 # data = pd.read_csv(your_file_path + its_name + '.csv', header=0, index_col=['date'], parse_dates=['date'])
@@ -61,36 +57,37 @@ data = cl.load_dataset()
 series = data['close'] # choose a DataFrame column 
 cl.statis_tests(series)
 kr = cl.keras_predictor()
-df_result = kr.hybrid_keras_predict(data=series, show_data=True, show_model=True, plot_result=True, save_result=True)
+df_result = kr.hybrid_keras_predict(data=series, show=True, plot=True, save=True)
 ```
 
 ### 0. Statistical tests (not necessary)
 The code will ouput the reuslt of ADF test, Ljung-Box Test, Jarque-Bera Test, and plot ACF and PACF figures to evaluate stationarity, autocorrelation, and normality.
 ```python
-cl.statis_tests()
+cl.statis_tests(series=None)
 ```
 
 ### 1.Declare the parameters
 Note, when declare the PATH, folders will be created automatically, inculding the figure and log folders.
 ```python
 kr = cl.keras_predictor(PATH=None, FORECAST_HORIZONS=30, FORECAST_LENGTH=30, KERAS_MODEL='GRU', 
-                        DECOM_MODE='CEEMDAN', INTE_LIST=None, REDECOM_LIST={'co-imf0':'vmd'},
+                        DECOM_MODE='CEEMDAN', INTE_LIST='auto', REDECOM_LIST={'co-imf0':'ovmd'},
                         NEXT_DAY=False, DAY_AHEAD=1, NOR_METHOD='minmax', FIT_METHOD='add', 
                         USE_TPU=False , **kwargs))
 ```
+
 | HyperParameters | Description | 
 | :-----| :----- | 
 |PATH               |the saving path of figures and logs, eg. 'D:/CEEMDAN_LSTM/'|
 |FORECAST_HORIZONS  |the length of each input row(x_train.shape), which means the number of previous days related to today, also called Timestep, Forecast_horizons, or Sliding_windows_length in some papers|
 |FORECAST_LENGTH    |the length of the days to forecast (test set)|
-|KERAS_MODEL        |the Keras model, eg. 'GRU', 'LSTM', 'DNN', 'BPNN', or model = Sequential()|
+|KERAS_MODEL        |the Keras model, eg. 'GRU', 'LSTM', 'DNN', 'BPNN', 'CUDNNLSTM', 'CUDNNGRU', model = Sequential(), or load_model.|
 |DECOM_MODE         |the decomposition method, eg.'EMD', 'VMD', 'CEEMDAN'|
 |INTE_LIST          |the integration list, eg. pd.Dataframe, (int) 3, (str) '233', (list) [0,0,1,1,1,2,2,2], ...|
 |REDECOM_LIST       |the re-decomposition list, eg. '{'co-imf0':'vmd', 'co-imf1':'emd'}', pd.DataFrame|
 |NEXT_DAY           |set True to only predict next out-of-sample value|
 |DAY_AHEAD          |define to forecast n days' ahead, eg. 0, 1, 2 (default int 1)|
 |NOR_METHOD         |the normalizing method, eg. 'minmax'-MinMaxScaler, 'std'-StandardScaler, otherwise without normalization|
-|FIT_METHOD         |the fitting method to stablize the forecasting result (not necessarily useful), eg. 'add', 'ensemble'|
+|FIT_METHOD         |the fitting method to stablize the forecasting result (not necessarily useful), eg. 'add', 'ensemble' (there some error for ensembleFIT_METHOD, please use add method as default.)|
 |USE_TPU            |change Keras model to TPU model (for google Colab)|
 
 | Keras Parameters | Description (more details refer to https://keras.io) | 
@@ -143,8 +140,8 @@ rt = cl.dm_test(actual_lst, pred1_lst, pred2_lst, h=1, crit="MSE", power=2)
 Set `NEXT_DAY=True`.
 ```python
 kr = cl.keras_predictor(NEXT_DAY=True)
-df_result = kr.hybrid_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
-# df_result = kr.rolling_keras_predict(data, predict_method='single', save_each_result=False)
+df_result = kr.hybrid_keras_predict(data, show=True, plotTrue, save=True)
+# df_result = kr.rolling_keras_predict(data, predict_method='single')
 ```
 ## Discussion
 ### 1. Look-ahead bias
