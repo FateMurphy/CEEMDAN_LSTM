@@ -80,8 +80,8 @@ kr = cl.keras_predictor(PATH=None, FORECAST_HORIZONS=30, FORECAST_LENGTH=30, KER
 |PATH               |the saving path of figures and logs, eg. 'D:/CEEMDAN_LSTM/'|
 |FORECAST_HORIZONS  |the length of each input row(x_train.shape), which means the number of previous days related to today, also called Timestep, Forecast_horizons, or Sliding_windows_length in some papers|
 |FORECAST_LENGTH    |the length of the days to forecast (test set)|
-|KERAS_MODEL        |the Keras model, eg. 'GRU', 'LSTM', 'DNN', 'BPNN', 'CUDNNLSTM', 'CUDNNGRU', model = Sequential(), or load_model.|
-|DECOM_MODE         |the decomposition method, eg.'EMD', 'VMD', 'CEEMDAN'|
+|KERAS_MODEL        |the Keras model, eg. 'GRU', 'LSTM', 'DNN', 'BPNN', model = Sequential(), or load_model.|
+|DECOM_MODE         |the decomposition method, eg.'EMD', 'EEMD', 'CEEMDAN', 'VMD', 'OVMD', 'SVMD'|
 |INTE_LIST          |the integration list, eg. pd.Dataframe, (int) 3, (str) '233', (list) [0,0,1,1,1,2,2,2], ...|
 |REDECOM_LIST       |the re-decomposition list, eg. '{'co-imf0':'vmd', 'co-imf1':'emd'}', pd.DataFrame|
 |NEXT_DAY           |set True to only predict next out-of-sample value|
