@@ -22,17 +22,19 @@ References:
 EMD, Empirical Mode Decomposition: 
     PyEMD: https://github.com/laszukdawid/PyEMD
     Laszuk & Dawid, 2017, https://doi.org/10.5281/zenodo.5459184
-    EMD: Huang et al., 1998, https://doi.org/10.1098/rspa.1998.0193.
-    EEMD: Wu & Huang, 2009, https://doi.org/10.1142/S1793536909000047.
-    CEEMDAN: Torres et al., 2011, https://doi.org/10.1109/ICASSP.2011.5947265.
+    EMD method: Huang et al., 1998, https://doi.org/10.1098/rspa.1998.0193.
+    EEMD method: Wu & Huang, 2009, https://doi.org/10.1142/S1793536909000047.
+    CEEMDAN method: Torres et al., 2011, https://doi.org/10.1109/ICASSP.2011.5947265.
 VMD, Variational mode decomposition: 
     vmdpy: https://github.com/vrcarva/vmdpy, 
     Vinícius et al., 2020, https://doi.org/10.1016/j.bspc.2020.102073.
-    method: Dragomiretskiy & Zosso, 2014, https://doi.org/10.1109/TSP.2013.2288675.
+    VMD method: Dragomiretskiy & Zosso, 2014, https://doi.org/10.1109/TSP.2013.2288675.
 SampEn, Sample Entropy:
     sampen: https://github.com/bergantine/sampen
 K-Means, scikit-learn(sklearn):
     scikit-learn: https://github.com/scikit-learn/scikit-learn
+Optuna, Bayesian Optimization: 
+    optuna: https://github.com/optuna/optuna
 """
 
 
@@ -40,7 +42,7 @@ K-Means, scikit-learn(sklearn):
 # 1.Decompose
 # ------------------------------------------------------
 # 1.Main. Decompose series
-def decom(series=None, decom_mode='ceemdan', **kwargs): 
+def decom(series=None, decom_mode='ceemdan', vmd_params=None, FORECAST_LENGTH=None, **kwargs): 
     """
     Decompose time series adaptively and return results in pd.Dataframe by PyEMD.EMD/EEMD/CEEMDAN or vmdpy.VMD.
     Example: df_decom = cl.decom(series, decom_mode='ceemdan')
@@ -50,6 +52,7 @@ def decom(series=None, decom_mode='ceemdan', **kwargs):
     ---------------------
     series     - the time series (1D) to be decomposed
     decom_mode - the decomposing methods eg. 'emd', 'eemd', 'ceemdan', 'vmd'
+    vmd_params - the best parameters K and tau of OVMD to jump the optimization
     **kwargs   - any parameters of PyEMD.EMD(), PyEMD.EEMD(), PyEMD.CEEMDAN(), vmdpy.VMD()
                - eg. trials for PyEMD.CEEMDAN(), change the number of inputting white noise 
     Output:
@@ -57,9 +60,11 @@ def decom(series=None, decom_mode='ceemdan', **kwargs):
     df_decom   - the decomposing results in pd.Dataframe
     """
 
+    if series is None: raise ValueError('Please input pd.Series, or pd.DataFrame(1D), nd.array(1D).')
     try: series = pd.Series(series)
-    except: raise ValueError('Sorry! %s is not supported to decompose, please input pd.Series, or pd.DataFrame(1D), nd.array(1D)'%type(series))
+    except: raise ValueError('Sorry! %s is not supported to decompose, please input pd.Series, or pd.DataFrame(1D), nd.array(1D).'%type(series))
     decom_mode = decom_mode.lower()
+    best_params = 'None'
     if decom_mode in ['emd', 'eemd', 'ceemdan']:
         try: import PyEMD
         except ImportError: raise ImportError('Cannot import EMD-signal!, run: pip install EMD-signal!')
@@ -70,10 +75,16 @@ def decom(series=None, decom_mode='ceemdan', **kwargs):
         df_decom = pd.DataFrame(decom_result, columns=['imf'+str(i) for i in range(len(decom_result[0]))])
     elif decom_mode == 'vmd': 
         df_decom, imfs_hat, omega = decom_vmd(series, **kwargs)
+    elif decom_mode == 'ovmd': 
+        df_decom, best_params = decom_ovmd(series, vmd_params=vmd_params, **kwargs)
+    elif decom_mode == 'svmd': 
+        df_decom = decom_svmd(series, vmd_params=vmd_params, FORECAST_LENGTH=FORECAST_LENGTH, **kwargs)
     else: raise ValueError('%s is not a supported decomposition method!'%(decom_mode))
-    if isinstance(series, pd.Series): df_decom.index = series.index # change index
+    if isinstance(series, pd.Series): 
+        if 'vmd' in decom_mode and len(series)%2: df_decom.index = series[1:].index # change index
+        else: df_decom.index = series.index # change index
     df_decom['target'] = series
-    df_decom.name = 'decom_mode_is_'+decom_mode.lower()
+    df_decom.name = decom_mode.lower()+'_'+str(best_params)
     return df_decom
 
 # 1.1 VMD
@@ -105,19 +116,109 @@ def decom_vmd(series=None, alpha=2000, tau=0, K=10, DC=0, init=1, tol=1e-7, **kw
 
     try: import vmdpy
     except ImportError: raise ImportError('Cannot import vmdpy, run: pip install vmdpy!')
+    if series is None: raise ValueError('Please input pd.Series, or pd.DataFrame(1D), nd.array(1D).')
+    if len(series)%2: print('Warning! The vmdpy module will delete the last one data point of series before decomposition')
     imfs_vmd, imfs_hat, imfs_omega = vmdpy.VMD(series, alpha, tau, K, DC, init, tol, **kwargs)  
     df_vmd = pd.DataFrame(imfs_vmd.T, columns=['imf'+str(i) for i in range(K)])
     return df_vmd, imfs_hat, imfs_omega
 
+# 1.2 Optimized VMD (OVMD)
+def decom_ovmd(series=None, vmd_params=None, trials=100): # VMD Decomposition
+    """
+    Decompose time series by VMD and use Bayesian Optimization to find the best K and tau
+    Example: df_vmd = cl.decom_ovmd(series)
+    Plot by pandas: df_vmd.plot(title='VMD Decomposition Results', subplots=True)
 
+    Input and Parameters:
+    ---------------------
+    series     - the time series (1D) to be decomposed
+    vmd_params - the best parameters K and tau of OVMD to jump the optimization
+    trials     - the number of optimization iteration
+
+    Output:
+    ---------------------
+    df_vmd     - the collection of decomposed modes in pd.Dataframe 
+    """
+    
+    if series is None: raise ValueError('Please input pd.Series, or pd.DataFrame(1D), nd.array(1D).')
+    try: series = pd.Series(series)
+    except: raise ValueError('Sorry! %s is not supported to decompose, please input pd.Series, or pd.DataFrame(1D), nd.array(1D)'%type(series))
+    if len(series)%2: 
+        print('Warning! The vmdpy module will delete the last one data point of series before decomposition')
+        series = series[1:]
+    if vmd_params is None:
+        try: import optuna
+        except: raise ImportError('Cannot import optuna, run: pip install optuna!')
+        def objective(trial):
+            K = trial.suggest_int('K', 1, 10) # set hyperparameter range
+            alpha = trial.suggest_int('alpha', 1, 10000)
+            tau = trial.suggest_float('tau', 0, 1) 
+            df_vmd, imfs_hat, imfs_omega = decom_vmd(series, K=K, alpha=alpha, tau=tau)
+            return abs((df_vmd.sum(axis=1).values - series.values).sum()) # residual of decomposed and original series 
+        study = optuna.create_study(study_name='OVMD Method', direction='minimize') # TPESampler is used
+        optuna.logging.set_verbosity(optuna.logging.WARNING) # not to print
+        study.optimize(objective, n_trials=trials, n_jobs=-1, gc_after_trial=True)  # number of iterations
+        vmd_params = study.best_params
+    df_vmd, imfs_hat, imfs_omega = decom_vmd(series, K=vmd_params['K'], alpha=vmd_params['alpha'], tau=vmd_params['tau'])
+    return df_vmd, vmd_params
+
+# 1.2 Separated VMD (SVMD)
+def decom_svmd(series=None, FORECAST_LENGTH=None, optimize=True, vmd_params=None, trials=100): # VMD Decomposition
+    """
+    Decompose time series by VMD separatey for traning and test set,
+    and use Bayesian Optimization to find the best K and tau.
+    Example: df_vmd = cl.decom_svmd(series)
+    Plot by pandas: df_vmd.plot(title='VMD Decomposition Results', subplots=True)
+
+    Input and Parameters:
+    ---------------------
+    series     - the time series (1D) to be decomposed
+    vmd_params - the best parameters K and tau of OVMD to jump the optimization
+    trials     - the number of optimization iteration
+    FORECAST_LENGTH    - the length of the days to forecast (test set)
+
+    Output:
+    ---------------------
+    df_vmd     - the collection of decomposed modes in pd.Dataframe 
+    """
+    
+    if series is None: raise ValueError('Please input pd.Series, or pd.DataFrame(1D), nd.array(1D).')
+    try: series = pd.Series(series)
+    except: raise ValueError('Sorry! %s is not supported to decompose, please input pd.Series, or pd.DataFrame(1D), nd.array(1D)'%type(series))
+    if len(series)%2: 
+        print('Warning! The vmdpy module will delete the last one data point of series before decomposition')
+        series = series[1:]
+    if FORECAST_LENGTH is None: raise ValueError('Please input FORECAST_LENGTH.')
+    if vmd_params is None and optimize == False: vmd_params = {'K':10, 'tau':0}
+
+    series_train = series[:-FORECAST_LENGTH]
+    series_test = series[-FORECAST_LENGTH:]
+    if vmd_params is None and optimize:
+        try: import optuna
+        except: raise ImportError('Cannot import optuna, run: pip install optuna!')
+        def objective(trial):
+            K = trial.suggest_int('K', 1, 10) # set hyperparameter range
+            alpha = trial.suggest_int('alpha', 1, 10000)
+            tau = trial.suggest_float('tau', 0, 1) 
+            df_vmd, imfs_hat, imfs_omega = decom_vmd(series_train, K=K, alpha=alpha, tau=tau)
+            return abs((df_vmd.sum(axis=1).values - series_train.values).sum()) # residual of decomposed and original training set series 
+        study = optuna.create_study(study_name='SVMD Method for training set', direction='minimize') # TPESampler is used
+        optuna.logging.set_verbosity(optuna.logging.WARNING) # not to print
+        study.optimize(objective, n_trials=trials, n_jobs=-1, gc_after_trial=True)  # number of iterations
+        vmd_params = study.best_params
+    df_vmd_train, imfs_hat, imfs_omega = decom_vmd(series_train, K=vmd_params['K'], alpha=vmd_params['alpha'], tau=vmd_params['tau'])
+    df_vmd_test, imfs_hat, imfs_omega = decom_vmd(series_test, K=vmd_params['K'], alpha=vmd_params['alpha'], tau=vmd_params['tau'])
+    df_vmd = pd.concat((df_vmd_train, df_vmd_test))
+    df_vmd.index = series.index
+    return df_vmd
 
 # 2.Integrate
 # ------------------------------------------------------
 # 2.Main. Integrate
-def inte(df_decom=None, inte_list=None, num_clusters=3):
+def inte(df_decom=None, inte_list='auto', num_clusters=3):
     """
     Integrate IMFs to be CO-IMFs by sampen.sampen2 and sklearn.cluster.
-    Example: df_inte = cl.inte(df_decom)
+    Example: df_inte, df_inte_list = cl.inte(df_decom)
     Plot by pandas: df_inte.plot(title='Integrated IMFs (Co-IMFs) Results', subplots=True)
     Custom integration: please use cl.inte_sampen() and cl.inte_kmeans()
 
@@ -130,53 +231,73 @@ def inte(df_decom=None, inte_list=None, num_clusters=3):
     Output:
     ---------------------
     df_inte        - the integrating form of each time series
+    df_inte_list   - the integrating set of each co-imf
     """
     
     # Check input
     try: df_decom = pd.DataFrame(df_decom)
-    except: raise ValueError('Invalid input!')
+    except: raise ValueError('Invalid input of df_decom!')
     if 'target' in df_decom.columns: 
         tmp_target = df_decom['target']
         df_decom = df_decom.drop('target', axis=1, inplace=False)
     else: tmp_target = None
+    df_decom.columns = ['imf'+str(i) for i in range(df_decom.columns.size)]
 
     # Check inte_list
-    if inte_list is None: # Without 
-        df_sampen = inte_sampen(df_decom)
-        inte_list = inte_kmeans(df_sampen, num_clusters)
-    elif isinstance(inte_list, pd.DataFrame):
-        if len(inte_list) == 1: inte_list = inte_list.T
-    elif type(inte_list) == str and len(inte_list) < df_decom.columns.size:
-        df_list, n, c = {}, 0, 0
-        for i in inte_list:
-            for j in ['imf'+str(x) for x in range(n, n+int(i))]: 
-                df_list[j], n = c, n + 1
-            c += 1
-        inte_list = pd.DataFrame(df_list, index=['Cluster']).T
-    elif type(inte_list) == str and len(inte_list) == df_decom.columns.size:
-        inte_list = pd.DataFrame([int(x) for x in inte_list], columns=['Cluster'], index=['imf'+str(x) for x in range(len(inte_list))])
-    elif type(inte_list) == int and inte_list < df_decom.columns.size:
-        df_sampen = inte_sampen(df_decom)
-        inte_list = inte_kmeans(df_sampen, inte_list)
-    else:
-        try: inte_list = pd.DataFrame(inte_list, columns=['Cluster'], index=['imf'+str(x) for x in range(len(inte_list))])
-        except: raise ValueError('Sorry! %s is an invalid integration list'%type(inte_list))
+    df_inte_list = []
+    if inte_list is not None:
+        if str(inte_list).lower() == 'auto': # Without 
+            df_sampen = inte_sampen(df_decom)
+            inte_list = inte_kmeans(df_sampen, num_clusters)
+        elif isinstance(inte_list, pd.DataFrame):
+            if len(inte_list) == 1: inte_list = inte_list.T
+        elif type(inte_list) == str and len(inte_list) < df_decom.columns.size:
+            df_list, n, c, s = {}, 0, 0, 0
+            for i in inte_list: s = s + int(i) 
+            if s != df_decom.columns.size: raise ValueError('Invalid inte_list! %s (%s columns) does not match the number of dataset columns=%s.'%(inte_list, s, df_decom.columns.size)) 
+            for i in inte_list:
+                for j in ['imf'+str(x) for x in range(n, n+int(i))]: 
+                    df_list[j], n = c, n + 1
+                c += 1
+            inte_list = pd.DataFrame(df_list, index=['Cluster']).T
+        elif type(inte_list) == str and len(inte_list) == df_decom.columns.size:
+            inte_list = pd.DataFrame([int(x) for x in inte_list], columns=['Cluster'], index=['imf'+str(x) for x in range(len(inte_list))])
+        elif type(inte_list) == int and inte_list < df_decom.columns.size:
+            print('Integrate %d columns to be %d columns by K-means.'%(df_decom.columns.size, inte_list))
+            df_sampen = inte_sampen(df_decom)
+            inte_list = inte_kmeans(df_sampen, inte_list)
+        else:
+            try: inte_list = pd.DataFrame(inte_list, columns=['Cluster'], index=['imf'+str(x) for x in range(len(inte_list))])
+            except: raise ValueError('Invalid inte_list of %s with type %s. Check your input or length.'%(inte_list, type(inte_list)))
 
-    # Integrate, name, and resort
-    df_tmp = pd.DataFrame()
-    for i in range(inte_list.values.max()+1):
-        df_tmp['imf'+str(i)] = df_decom[inte_list[(inte_list['Cluster']==i)].index].sum(axis=1)
-    df_inte = df_tmp.T # Use Sample Entropy sorting the Co-IMFs
-    df_inte['sampen'] = inte_sampen(df_tmp).values
-    df_inte.sort_values(by=['sampen'], ascending=False, inplace=True)
-    df_inte.index = ['co-imf'+str(i) for i in range(inte_list.values.max()+1)]
-    df_inte = df_inte.drop('sampen', axis=1, inplace=False).T
+        # Integrate, name, and resort
+        df_tmp = pd.DataFrame()
+        for i in range(inte_list.values.max()+1):
+            df_tmp['imf'+str(i)] = df_decom[inte_list[(inte_list['Cluster']==i)].index].sum(axis=1)
+            df_tmp_list = pd.DataFrame(df_tmp['imf'+str(i)])
+            df_tmp_list.columns = ['target']
+            df_inte_list.append(pd.concat((df_tmp_list, df_decom[inte_list[(inte_list['Cluster']==i)].index]), axis=1))
+        df_inte = df_tmp.T # Use Sample Entropy sorting the Co-IMFs
+        df_inte['sampen'] = inte_sampen(df_tmp).values
+        df_inte.sort_values(by=['sampen'], ascending=False, inplace=True)
+        df_inte.index = ['co-imf'+str(i) for i in range(inte_list.values.max()+1)]
+        df_inte = df_inte.drop('sampen', axis=1, inplace=False).T
 
-    # Output
-    df_inte.name = 'inte_list_is_'+''.join(str(x) for x in inte_list.values.ravel()) # record integrate list
-    df_inte.index = df_decom.index
+        # Rename df_inte_list
+        for i in range(len(df_inte.columns)):
+            for j in range(len(df_inte.columns)):
+                try:
+                    if df_inte_list[i]['target'].sum() == df_inte['co-imf'+str(j)].sum():
+                        df_inte_list[i].columns = ['co-imf'+str(j)] + list(df_inte_list[i].columns)[1:]
+                except: break
+
+        # Output
+        df_inte.name = 'df_inte_list_is_'+''.join(str(x) for x in inte_list.values.ravel()) # record integrate list
+        df_inte.index = df_decom.index
+    else: df_inte = df_decom
     if tmp_target is not None: df_inte['target'] = tmp_target # add tmp target column
-    return df_inte
+    return df_inte, df_inte_list
+    
 
 # 2.1 Sample Entropy
 def inte_sampen(df_decom=None, max_len=1, tol=0.1, nor=True, **kwargs):
@@ -197,7 +318,8 @@ def inte_sampen(df_decom=None, max_len=1, tol=0.1, nor=True, **kwargs):
     ---------------------
     df_sampen  - the Sample Entropy of each time series in pd.Dataframe
     """
-            
+    try: df_decom = pd.DataFrame(df_decom)
+    except: raise ValueError('Invalid input of df_decom!')
     if 'target' in df_decom.columns: df_decom = df_decom.drop('target', axis=1, inplace=False)
     try: import sampen
     except ImportError: raise ImportError('Cannot import sampen, run: pip install sampen!')
@@ -230,6 +352,8 @@ def inte_kmeans(df_sampen=None, num_clusters=3, random_state=0, **kwargs):
     # Get integrating form by K-Means
     try: from sklearn.cluster import KMeans
     except ImportError: raise ImportError('Cannot import sklearn, run: pip install sklearn!')
+    try: df_sampen = pd.DataFrame(df_sampen)
+    except: raise ValueError('Invalid input of df_sampen!')
     np_inte_list = KMeans(n_clusters=num_clusters, random_state=random_state, **kwargs).fit_predict(df_sampen)
     inte_list = pd.DataFrame(np_inte_list, index=['imf'+str(i) for i in range(df_sampen.index.size)], columns=['Cluster'])
     return inte_list
@@ -239,7 +363,7 @@ def inte_kmeans(df_sampen=None, num_clusters=3, random_state=0, **kwargs):
 # 3.Other Mains
 # ------------------------------------------------------
 # 3.Main. Redecompose (inculd decom() and inte())
-def redecom(data=None, show_data=False, decom_mode='ceemdan', inte_list=None, redecom_list={'co-imf0':'vmd'}, **kwargs):
+def redecom(data=None, show_data=False, decom_mode='ceemdan', inte_list='auto', redecom_list={'co-imf0':'ovmd'}, vmd_params=None, FORECAST_LENGTH=None, **kwargs):
     """
     redecompose data adaptively and return results in pd.Dataframe.
     Example: df_decom = cl.redecom(series, decom_mode='ceemdan', redecom_list={'co-imf0':'vmd'})
@@ -252,6 +376,7 @@ def redecom(data=None, show_data=False, decom_mode='ceemdan', inte_list=None, re
     decom_mode      - the decomposing methods eg. 'emd', 'eemd', 'ceemdan', 'vmd'
     inte_list       - the integration list, eg. pd.Dataframe, (int) 3, (str) '233', (list) [0,0,1,1,1,2,2,2], ...
     redecom_list    - the re-decomposition list eg. '{'co-imf0':'vmd', 'co-imf1':'emd'}', pd.DataFrame
+    vmd_params      - the best parameters K and tau of OVMD to jump the optimization
     **kwargs        - any parameters of PyEMD.EMD(), PyEMD.EEMD(), PyEMD.CEEMDAN(), vmdpy.VMD()
                     - eg. trials for PyEMD.CEEMDAN(), change the number of inputting white noise 
     Output:
@@ -260,24 +385,27 @@ def redecom(data=None, show_data=False, decom_mode='ceemdan', inte_list=None, re
     df_redecom_list - each IMF's redecomposing results and itself as target
     """
 
-    try: data = pd.DataFrame(data)
-    except: raise ValueError('Invalid input!')
     from CEEMDAN_LSTM.core import check_dataset
-    check_dataset(data, show_data)
+    data = check_dataset(data, show_data, decom_mode, redecom_list)
+    if vmd_params is not None and type(vmd_params) != dict: raise ValueError('Invalid input of vmd_params!') 
     if len(data.columns) == 1: 
-        df_decom = decom(data[data.columns[0]], decom_mode=decom_mode, **kwargs)
-        df_inte = inte(df_decom, inte_list=inte_list)
-    else: df_inte = data # pd.DataFrame
+        df_decom = decom(data[data.columns[0]], decom_mode=decom_mode, FORECAST_LENGTH=FORECAST_LENGTH)
+    else: df_decom = data # pd.DataFrame
+    df_inte, df_inte_list = inte(df_decom, inte_list=inte_list)
 
     # Re-decompose 
-    df_redecom_list = []
+    df_redecom_list, best_params_dict, inte_columns = [], {}, str(df_inte.columns.to_list())
     if redecom_list is not None:
         try: redecom_list = pd.DataFrame(redecom_list, index=range(1))
         except: raise ValueError("Invalid input for redecom_list! Please input eg. None, '{'co-imf0':'vmd', 'co-imf1':'emd'}'.")
         for i in redecom_list.columns:
             try: df_inte[i]
             except: raise ValueError('Invalid input for redecom_list! Please check your key value of column name.')
-            df_redecom = decom(df_inte[i], decom_mode=redecom_list[i][0], **kwargs)
+            if vmd_params is None: df_redecom = decom(df_inte[i], decom_mode=redecom_list[i][0], FORECAST_LENGTH=FORECAST_LENGTH, **kwargs)
+            else: 
+                print('Get vmd_params:', vmd_params)
+                df_redecom = decom(df_inte[i], decom_mode=redecom_list[i][0], vmd_params=vmd_params[i], FORECAST_LENGTH=FORECAST_LENGTH, **kwargs)
+            best_params_dict[i] = eval(df_redecom.name.split('_')[1])
             df_redecom = df_redecom.drop('target', axis=1, inplace=False)
             df_redecom.columns = [i+'-'+redecom_list[i][0].lower()+str(x) for x in range(df_redecom.columns.size)]# rename
             for x in df_redecom.columns[::-1]: df_inte.insert(int(i[-1]), x, df_redecom[x].values)
@@ -285,12 +413,11 @@ def redecom(data=None, show_data=False, decom_mode='ceemdan', inte_list=None, re
             df_redecom.name = i
             df_redecom_list.append(df_redecom) 
             df_inte = df_inte.drop(i, axis=1, inplace=False)
-        df_inte.name = 'redecom_list_is_'+'_'.join(str(x) for x in redecom_list.columns) # record redecompose list
-    else: df_inte.name = 'without_redecom'
+        df_inte.name = inte_columns+'_'+str(best_params_dict) # record redecomposition parameters
+    else: df_inte.name = 'None'
     if show_data:
-        if len(data.columns) == 1 or redecom_list is not None:
-            print('\nPart of preprocessing dataset (inculde training and test set):')
-            print(df_inte)
+        print('\nPart of preprocessing dataset (inculde training and test set):')
+        print(df_inte)
     return df_inte, df_redecom_list
 
 # 3.Main. Evaluate
@@ -343,8 +470,8 @@ def normalize_dataset(data=None, FORECAST_LENGTH=None, NOR_METHOD='MinMax'):
     # import 
     try: from sklearn.preprocessing import MinMaxScaler, StandardScaler
     except ImportError: raise ImportError('Cannot import sklearn, run: pip install sklearn!')
-    from CEEMDAN_LSTM.core import check_dataset
-    data = check_dataset(data)
+    try: data = pd.DataFrame(data)
+    except: raise ValueError('Invalid input!')
 
     # Split
     if len(data.columns) == 1: # Initialize Series
@@ -355,6 +482,7 @@ def normalize_dataset(data=None, FORECAST_LENGTH=None, NOR_METHOD='MinMax'):
         dataX = data.drop('target', axis=1, inplace=False)
 
     # Setting normalizing method
+    if NOR_METHOD is None: NOR_METHOD=''
     if NOR_METHOD.lower() == 'minmax':
         scalarX = MinMaxScaler(feature_range=(0,1)) 
         scalarY = MinMaxScaler(feature_range=(0,1)) 
@@ -364,7 +492,6 @@ def normalize_dataset(data=None, FORECAST_LENGTH=None, NOR_METHOD='MinMax'):
     else: 
         scalarY = None
         print("Warning! Data is not normalized, please set nor_method = eg.'minmax', 'std'")
-        
 
     # Normalize by sklearn
     if scalarY is not None:
@@ -380,7 +507,7 @@ def normalize_dataset(data=None, FORECAST_LENGTH=None, NOR_METHOD='MinMax'):
     return np.array(dataX), np.array(dataY), scalarY
 
 # 3.Main. Create training set and test set
-def create_train_test_set(data=None, FORECAST_LENGTH=None, FORECAST_HORIZONS=None, NOR_METHOD='MinMax', DAY_AHEAD=1, fitting_set=None):
+def create_train_test_set(data=None, FORECAST_LENGTH=None, FORECAST_HORIZONS=None, NEXT_DAY=False, NOR_METHOD='MinMax', DAY_AHEAD=1, fitting_set=None):
     """
     Create training set and test set with normalization
 
@@ -419,7 +546,7 @@ def create_train_test_set(data=None, FORECAST_LENGTH=None, FORECAST_HORIZONS=Non
             if DAY_AHEAD == 0:
                 raise ValueError('Warning! When DAY_AHEAD = 0, it is not support the fitting method, already fit today.')
             elif DAY_AHEAD == 1:
-                if i < len_train+1: trainX[i] = np.insert(trainX[i], FORECAST_HORIZONS, dataX[i+FORECAST_HORIZONS], axis=0)
+                if i < len_train: trainX[i] = np.insert(trainX[i], FORECAST_HORIZONS, dataX[i+FORECAST_HORIZONS], axis=0)
                 else: trainX[i] = np.insert(trainX[i], FORECAST_HORIZONS, fitting_set.values[i-len_train], axis=0) # fitting_set is pd.DataFrame
             else: # if DAY_AHEAD > 1:
                 k = DAY_AHEAD - i + len_train
@@ -430,9 +557,12 @@ def create_train_test_set(data=None, FORECAST_LENGTH=None, FORECAST_HORIZONS=Non
                     for y in range(k, DAY_AHEAD): trainX[i] = np.insert(trainX[i], FORECAST_HORIZONS+y, fitting_set.values[y-k], axis=0)
                 else: 
                     for j in range(DAY_AHEAD): trainX[i] = np.insert(trainX[i], FORECAST_HORIZONS+j, fitting_set.values[j-k], axis=0) 
-                
-    x_train, x_test = np.array(trainX[:-FORECAST_LENGTH]), np.array(trainX[-FORECAST_LENGTH:])
-    y_train, y_test = np.array(trainY[:-FORECAST_LENGTH]), np.array(trainY[-FORECAST_LENGTH:])
+    if NEXT_DAY:
+        x_train, x_test = np.array(trainX), None
+        y_train, y_test = np.array(trainY), None
+    else:
+        x_train, x_test = np.array(trainX[:-FORECAST_LENGTH]), np.array(trainX[-FORECAST_LENGTH:])
+        y_train, y_test = np.array(trainY[:-FORECAST_LENGTH]), np.array(trainY[-FORECAST_LENGTH:])
 
     return x_train, x_test, y_train, y_test, scalarY, next_x # return np.array
 
@@ -451,6 +581,8 @@ def statis_tests(series=None):
     Make statistical tests, including ADF test, Ljung-Box Test, Jarque-Bera Test, and plot ACF and PACF, to evaluate stationarity, autocorrelation, and normality.
     Input: series     - the time series (1D)
     """
+    try: import statsmodels
+    except: raise ImportError('Cannot import statsmodels, run: pip install statsmodels!')
     adf_test(series)
     lb_test(series)
     jb_test(series)
@@ -465,7 +597,7 @@ def adf_test(series=None):
     from statsmodels.tsa.stattools import adfuller # adf_test
     series = check_series(series)
     adf_ans = adfuller(series) # The outcomes are test value, p-value, lags, degree of freedom.
-    print('==========ADF Test==========')
+    print('\n==========ADF Test==========')
     print('Test value:',adf_ans[0])
     print('P value:',adf_ans[1])
     print('Lags:',adf_ans[2])
@@ -492,10 +624,11 @@ def lb_test(series=None):
     from statsmodels.stats.diagnostic import acorr_ljungbox as lb_test # LB_test
     series = check_series(series)
     lb_ans = lb_test(series,lags=None,boxpierce=False) # The default lags=40 for long series.
-    print('==========Ljung-Box Test==========')
-    pd.Series(lb_ans[1]).plot(title='Ljung-Box Test p-values') # Plot p-values in a figure
-    if np.sum(lb_ans[1])<=0.05: # Brief review
-        print('The sum of p-value is '+str(np.sum(lb_ans[1]))+'<=0.05, rejecting the null hypothesis that the series has very strong autocorrelation.')
+    print('\n==========Ljung-Box Test==========')
+    pd.Series(lb_ans['lb_pvalue']).plot(title='Ljung-Box Test p-values') # Plot p-values in a figure
+    plt.show()
+    if np.sum(lb_ans['lb_pvalue'])<=0.05: # Brief review
+        print('The sum of p-value is '+str(np.sum(lb_ans['lb_pvalue']))+'<=0.05, rejecting the null hypothesis that the series has very strong autocorrelation.')
     else: print('Please view with the line chart, the autocorrelation of the series may be not strong.')
     # print(pd.DataFrame(lb_ans)) # Show outcomes with test value at line 0, and p-value at line 1.
 
@@ -508,7 +641,7 @@ def jb_test(series=None):
     from statsmodels.stats.stattools import jarque_bera as jb_test # JB_test
     series = check_series(series)
     jb_ans = jb_test(series) # The outcomes are test value, p-value, skewness and kurtosis.
-    print('==========Jarque-Bera Test==========')
+    print('\n==========Jarque-Bera Test==========')
     print('Test value:',jb_ans[0])
     print('P value:',jb_ans[1])
     print('Skewness:',jb_ans[2])
@@ -529,7 +662,7 @@ def plot_acf_pacf(series=None, fig_path=None):
     """
     from statsmodels.graphics.tsaplots import plot_acf, plot_pacf # plot_acf_pacf
     series = check_series(series)
-    print('==========ACF and PACF==========')
+    print('\n==========ACF and PACF==========')
     fig = plt.figure(figsize=(10,5))
     fig1 = fig.add_subplot(211)
     plot_acf(series, lags=40, ax=fig1)
@@ -643,7 +776,7 @@ def dm_test(actual_lst, pred1_lst, pred2_lst, h=1, crit="MSE", power=2):
     # Raise error if cannot pass error check
     if (error_code[0] == -1):
         raise SyntaxError(error_code[1])
-        return
+
     # Import libraries
     from scipy.stats import t
     import collections
@@ -713,3 +846,4 @@ def dm_test(actual_lst, pred1_lst, pred2_lst, h=1, crit="MSE", power=2):
     dm_return = collections.namedtuple('dm_return', 'DM p_value')
     rt = dm_return(DM = DM_stat, p_value = p_value)
     return rt
+

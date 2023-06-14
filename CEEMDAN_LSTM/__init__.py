@@ -1,6 +1,6 @@
 ﻿# __init__.py
 
-__version__ = '1.1'
+__version__ = '1.2b'
 __module_name__ = 'CEEMDAN_LSTM'
 
 # Basic
@@ -22,6 +22,8 @@ from CEEMDAN_LSTM.data_preprocessor import (
     # Main
     decom,
     decom_vmd,
+    decom_ovmd,
+    decom_svmd,
     inte,
     inte_sampen,
     inte_kmeans,

@@ -23,12 +23,13 @@ import sys
 import time
 import numpy as np
 import pandas as pd
+from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore") # Ignore some annoying warnings
 # CEEMDAN_LSTM
 from CEEMDAN_LSTM.core import check_dataset, check_path, plot_save_result, name_predictor
 # Sklearn
-import matplotlib as plt
+import matplotlib.pyplot as plt
 from sklearn.svm import SVR
 from sklearn.linear_model import Lasso
 from sklearn.model_selection import cross_val_score, GridSearchCV
@@ -83,7 +84,6 @@ class sklearn_predictor:
         self.FIG_PATH = None
         self.LOG_PATH = None
 
-
         # Check parameters
         self.PATH, self.FIG_PATH, self.LOG_PATH = check_path(PATH) # Check PATH
 
@@ -118,7 +118,7 @@ class sklearn_predictor:
         Use keras model to directly forecast wiht vector input
         Example: 
         sr = cl.sklearn_predictor()
-        df_result = kr.svm_predict(data, show_data=True, plot_result=True)
+        df_result = sr.svm_predict(data, show_data=True, plot_result=True)
 
         Input and Parameters:
         ---------------------
@@ -139,7 +139,7 @@ class sklearn_predictor:
 
         # Name and set target
         self.SKLEARN_MODEL = 'SVM'
-        now = pd.datetime.now()
+        now = datetime.now()
         predictor_name = name_predictor(now, '', 'Sklearn', self.SKLEARN_MODEL, None, None, False)
         data = check_dataset(data, show_data)
         self.TARGET = data['target']

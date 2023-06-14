@@ -14,15 +14,13 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
-
+from datetime import datetime
 
 
 # 0.Guideline
 # ------------------------------------------------------
 def help():
-    print('CEEMDAN_LSTM is a module that helps you make a quick decomposition-integration time series forecasting.', end=' ')
-    print('It is still being tested. There may be some errors at runtime.', end=' ')
-    print("For module 'PyEMD', please use 'pip install EMD-signal' instead.")
+    print('CEEMDAN_LSTM is a module that helps you make a quick decomposition-integration time series forecasting.')
     print('===============================')
     print('Available Functions')
     print('===============================')
@@ -61,6 +59,7 @@ def help():
     print("cl.lb_test(series=None)")
     print("cl.jb_test(series=None)")
     print("cl.plot_acf_pacf(series=None, fig_path=None)")
+    print("cl.plot_heatmap(data, corr_method='pearson', fig_path=None)")
     print("cl.dm_test(actual_lst, pred1_lst, pred2_lst, h=1, crit='MSE', power=2)")
     print()
     print("# 3.Keras predictor: ")
@@ -68,12 +67,12 @@ def help():
     print("IMPORTANT! Please change parameters via kr = cl.keras_predictor().")
     print("This class is still under compilation.")
     print("cl.keras_predict(self, data=None, show_model=False, fitting_set=None, **kwargs)")
-    print("cl.single_keras_predict(self, data=None, show_data=False, show_model=False, plot_result=False, save_result=False, **kwargs)")
-    print("cl.ensemble_keras_predict(self, data=None, show_data=False, show_model=False, plot_result=False, save_result=False, **kwargs)")
-    print("cl.respective_keras_predict(self, data=None, show_data=False, show_model=False, plot_result=False, save_result=False, **kwargs)")
-    print("cl.hybrid_keras_predict(self, data=None, show_data=False, show_model=False, plot_result=False, save_result=False, **kwargs)")
-    print("cl.multiple_keras_predict(self, data=None, run_times=10, predict_method=None, save_each_result=False, **kwargs)")
-    print("cl.rolling_keras_predict(self, data=None, predict_method=None, save_each_result=False, **kwargs)")
+    print("cl.single_keras_predict(self, data=None, show=False, plot=False, save=False, **kwargs)")
+    print("cl.ensemble_keras_predict(self, data=None, show=False, plot=False, save=False, **kwargs)")
+    print("cl.respective_keras_predict(self, data=None, show=False, plot=False, save=False, **kwargs)")
+    print("cl.hybrid_keras_predict(self, data=None, show=False, plot=False, save=False, **kwargs)")
+    print("cl.multiple_keras_predict(self, data=None, run_times=10, predict_method=None, **kwargs)")
+    print("cl.rolling_keras_predict(self, data=None, predict_method=None, **kwargs)")
     print()
     print("# 4.Sklearn predictor: ")
     print("-------------------------------")
@@ -116,12 +115,13 @@ def show_keras_example():
     print("\nprint('\\n5.Integrate IMFs and Residue to be 3 Co-IMFs')")
     print("print('-------------------------------')")
     print("df_integrate_result = cl.inte(df_ceemdan, df_integrate_form)")
+    print("df_integrate_result = df_integrate_result[0]")
     print("df_integrate_result.plot(title='Integrated IMFs (Co-IMFs) of CEEMDAN', subplots=True, figsize=(6,3)) # plot")
     print("plt.show() # plot")
-    print("\nprint('\\n6.Secondary Decompose the high-frequency Co-IMF0 by VMD')")
+    print("\nprint('\\n6.Secondary Decompose the high-frequency Co-IMF0 by OVMD')")
     print("print('-------------------------------')")
-    print("df_vmd_co_imf0 = cl.decom(df_integrate_result['co-imf0'], decom_mode='vmd')")
-    print("df_vmd_co_imf0.plot(title='VMD Decomposition of Co-IMF0', subplots=True, figsize=(6,11)) # plot")
+    print("df_vmd_co_imf0 = cl.decom(df_integrate_result['co-imf0'], decom_mode='ovmd')")
+    print("df_vmd_co_imf0.plot(title='OVMD Decomposition of Co-IMF0', subplots=True, figsize=(6,11)) # plot")
     print("plt.show() # plot")
     print("\nprint('\\n7.Predict Co-IMF0 by matrix-input GRU (ensemble method)')")
     print("print('-------------------------------')")
@@ -193,11 +193,11 @@ def load_dataset(dataset_name='sse_index.csv'):
     df_raw_data    - pd.DataFrame or pd.Series
     """
     dataset_location = os.path.dirname(os.path.realpath(__file__)) + '/datasets/'
-    df_raw_data = pd.read_csv(dataset_location+dataset_name, header=0, index_col=['date'], parse_dates=['date'], date_parser=lambda x: pd.datetime.strptime(x, '%Y-%m-%d'))
+    df_raw_data = pd.read_csv(dataset_location+dataset_name, header=0, index_col=['date'], parse_dates=['date'])
     return df_raw_data
 
 # Check dataset
-def check_dataset(data, show_data=False, decom_mode=None):
+def check_dataset(data, show_data=False, decom_mode=None, redecom_list=None):
     """
     Check dataset and change data to pd.DataFrame or pd.Series
     Example: output = cl.check_dataset(data)
@@ -211,13 +211,27 @@ def check_dataset(data, show_data=False, decom_mode=None):
     check_data - pd.DataFrame or pd.Series
     """
 
+    # Check Input
+    if data is None: raise ValueError('Please input data!')
     try: check_data = pd.DataFrame(data)
-    except: raise ValueError('Invalid input!')
-    # Check dataset
+    except: raise ValueError('Invalid input of dataset %s!'%type(data))
+    if decom_mode is None: decom_mode = ''
+    if redecom_list is None: redecom_list = {}
     if pd.isnull(check_data.values).any(): raise ValueError('Please check inputs! There is NaN!')
+    if not check_data.apply(lambda s: pd.to_numeric(s, errors='coerce').notnull().all()).all(): 
+        raise ValueError('Please check inputs! Cannot convert it to number.')
+
+    # As vmdpy has some error and cannot decomose odd-number series, delete one data point here
+    for x in redecom_list.values(): 
+        if 'vmd' in x.lower() and len(check_data)%2: check_data = check_data.sort_index()[1:] 
+    if 'vmd' in decom_mode.lower() and len(check_data)%2: check_data = check_data.sort_index()[1:] 
+
+    # Set target
     if 'target' not in check_data.columns:
         if len(check_data.columns) == 1: check_data.columns=['target']
-        elif decom_mode in ['emd', 'eemd', 'ceemdan']: check_data['target'] = check_data.sum(axis=1).values
+        elif decom_mode.lower() in ['emd', 'eemd', 'ceemdan']: 
+            check_data['target'] = check_data.sum(axis=1).values
+            print('Warning! The sum of all column has been set as the target column.') 
         else:
             check_data.columns = check_data.columns[1:].insert(0, 'target') # set first columns as target 
             print('Warning! The first column has been set as the target column.')  
@@ -227,8 +241,8 @@ def check_dataset(data, show_data=False, decom_mode=None):
         print('Data type is %s.'%type(check_data))
         print('Part of inputting dataset:')
         print(check_data)
-        print('\nData description:')
-        print(check_data.describe())
+        # print('\nData description:')
+        # print(check_data.describe())
     return check_data
 
 # Check PATH
@@ -261,25 +275,38 @@ def check_path(PATH):
     return PATH, FIG_PATH, LOG_PATH
 
 # Name the predictor
-def name_predictor(now, name, module, model, decom_mode=None, redecom_mode=None, next_pred=False):
+def name_predictor(now, name, module, model, decom_mode=None, redecom_list=None, next_pred=False):
     """
-    Name the predictor for convenient saving 
+    Name the predictor for convenient saving.
     """
 
+    redecom_mode = ''
+    if redecom_list is not None: # Check redecom_list and get redecom_mode
+        try: redecom_list = pd.DataFrame(redecom_list, index=[0]) 
+        except: raise ValueError("Invalid input for redecom_list! Please input eg. None, '{'co-imf0':'vmd', 'co-imf1':'emd'}'.")
+        for i in range(redecom_list.size): redecom_mode = redecom_mode+redecom_list.values.ravel()[i]+'-'
+
     from tensorflow.python.keras.models import Sequential
-    if 'Single' not in name:
-        if decom_mode is not None: 
-            name = name + ' ' + decom_mode.upper() + '-' 
-            if redecom_mode is not None: name = name + redecom_mode.upper()
-    else: name = name + ' '
-    if isinstance(model, Sequential): name = name+'CustomModel' # forecasting model
-    else: name = name + model.upper()
+    if type(model) == str and '.h5' not in str(model):
+        if 'Single' not in name:
+            if decom_mode is not None: 
+                name = name + ' ' + decom_mode.upper() + '-' 
+                name = name + redecom_mode.upper()
+        else: name = name + ' '
+        name = name + model.upper()  # forecasting model
+    else: name = name+' Custom Model'
     if next_pred: name = name+' Next-day' # Next-day forecasting or not
     name = name + ' ' + module+' Forecasting'
     print('==============================================================================')
     print(str(now.strftime('%Y-%m-%d %H:%M:%S'))+' '+ name +' is running...')
     print('==============================================================================')
     return name
+
+# Change name
+def change_name(s): 
+    s = s.replace('-','_')
+    s = s.replace(' ','_')
+    return s
 
 # Plot and save data
 def plot_save_result(data, name=None, plot=True, save=True, path=None, type=None): 
@@ -299,17 +326,11 @@ def plot_save_result(data, name=None, plot=True, save=True, path=None, type=None
 
     # Check Name
     if name is None: 
-        name = pd.datetime.now().strftime('%Y%m%d_%H%M%S_')
-    elif isinstance(name, pd.datetime):
+        name = datetime.now().strftime('%Y%m%d_%H%M%S_')
+    elif isinstance(name, datetime):
         name = name.strftime('%Y%m%d_%H%M%S_')
     else: name = ''
     if PATH is None: save = False
-
-    # Change name
-    def _(s): 
-       s = s.replace('-','_')
-       s = s.replace(' ','_')
-       return s
 
     # Default output function
     def default_output(df): 
@@ -317,9 +338,9 @@ def plot_save_result(data, name=None, plot=True, save=True, path=None, type=None
             if plot:
                 df.plot(figsize=(8,4))
                 plt.title(df.name, fontsize=16, y=1)
-                if save: plt.savefig(FIG_PATH + name + _(df.name)+'.jpg', dpi=300, bbox_inches='tight') # Save figure
+                if save: plt.savefig(FIG_PATH + name + change_name(df.name)+'.jpg', dpi=300, bbox_inches='tight') # Save figure
                 plt.show()
-        if save: pd.DataFrame.to_csv(df, LOG_PATH + name + _(df.name)+'.csv', encoding='utf-8') # Save log
+        if save: pd.DataFrame.to_csv(df, LOG_PATH + name + change_name(df.name)+'.csv', encoding='utf-8') # Save log
 
     # Ouput
     if isinstance(data, tuple):
@@ -334,15 +355,9 @@ def plot_save_result(data, name=None, plot=True, save=True, path=None, type=None
             if plot:
                 data.plot(figsize=(8,2*data.columns.size), subplots=True)
                 plt.gcf().suptitle(data.name, fontsize=16, y=0.9) # Enlarge and Move the title     
-                if save: plt.savefig(FIG_PATH + name + _(data.name)+'.jpg', dpi=300, bbox_inches='tight') # Save figure
+                if save: plt.savefig(FIG_PATH + name + change_name(data.name)+'.jpg', dpi=300, bbox_inches='tight') # Save figure
                 plt.show()
-            if save: pd.DataFrame.to_csv(data, LOG_PATH + name + _(data.name)+'.csv', encoding='utf-8') # Save log
-        elif 'Next-day' in data.name: # save Next-day forecasting result
-            name = name[:9]+'000000_'
-            if save:
-                log_name = LOG_PATH + name + _(data.name)+'.csv'
-                if not os.path.exists(log_name): pd.DataFrame.to_csv(data, log_name, mode='a+', encoding='utf-8') # Save log with header
-                else: pd.DataFrame.to_csv(data, log_name, mode='a+', encoding='utf-8', header=None) # Save log
+            if save: pd.DataFrame.to_csv(data, LOG_PATH + name + change_name(data.name)+'.csv', encoding='utf-8') # Save log
         else:
             try: default_output(data)
             except: print('Data is:\n', data)
@@ -368,7 +383,7 @@ def quick_keras_predict(data=None, **kwargs):
     except: raise ValueError('Sorry! %s is not supported, please input pd.DataFrame, pd.Series, nd.array(<=2D)'%type(data))
 
     kr = keras_predictor(**kwargs)
-    df_result = kr.hybrid_keras_predict(data=data, show_data=True, show_model=True, plot_result=True, save_result=True)
+    df_result = kr.hybrid_keras_predict(data=data, show=True, plot=True, save=True)
     
     return df_result
 
@@ -396,8 +411,8 @@ def details_keras_predict(data=None, fitting=False, **kwargs):
         print('Load the sample dataset of the SSE index. Check it by cl.load_dataset()')
         dataset = load_dataset()
         data = pd.Series(dataset['close'].values, index=dataset.index)
-    try: data = pd.Series(data)
-    except: raise ValueError('Sorry! %s is not supported, please input pd.DataFrame, pd.Series, nd.array(<=2D)'%type(data))
+    data = check_dataset(data, False, 'vmd')
+    data = pd.Series(data.values.ravel(), index=data.index)
     data.plot(title='Original Data')
     plt.show()
 
@@ -426,14 +441,15 @@ def details_keras_predict(data=None, fitting=False, **kwargs):
     print("\n5.Integrate IMFs and Residue to be 3 Co-IMFs")
     print("-------------------------------")
     df_integrate_result = inte(df_ceemdan, df_integrate_form)
+    df_integrate_result = df_integrate_result[0]
     df_integrate_result.plot(title='Integrated IMFs (Co-IMFs) of CEEMDAN', subplots=True, figsize=(6, 3))
     plt.show()
 
     # 6.Secondary Decompose the high-frequency Co-IMF0 by VMD (cl.redecom cna finish step 2 to 6)
-    print("\n6.Secondary Decompose the high-frequency Co-IMF0 by VMD")
+    print("\n6.Secondary Decompose the high-frequency Co-IMF0 by OVMD")
     print("-------------------------------")
-    df_vmd_co_imf0 = decom(df_integrate_result['co-imf0'], decom_mode='vmd')
-    df_vmd_co_imf0.plot(title='VMD Decomposition of Co-IMF0', subplots=True, figsize=(6, 11))
+    df_vmd_co_imf0 = decom(df_integrate_result['co-imf0'], decom_mode='ovmd')
+    df_vmd_co_imf0.plot(title='OVMD Decomposition of Co-IMF0', subplots=True, figsize=(6, 11))
     plt.show()
 
     # 7.Predict Co-IMF0 by matrix-input GRU (ensemble method)
