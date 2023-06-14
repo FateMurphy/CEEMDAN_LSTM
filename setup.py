@@ -6,13 +6,17 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='CEEMDAN_LSTM',
-    version='1.1',
+    version='1.2b1',
     packages=setuptools.find_packages(),
     install_requires=['numpy >= 1.17.3',
                       'pandas >= 1.2.0',
                       'EMD-signal >= 1.2.3',
+                      'optuna >= 3.0.0',
                       'vmdpy',
                       'sampen',
+                      'matplotlib',
+                      'sklearn',
+                      'tensorflow >= 2.5.0',
                       ],
     package_data={'CEEMDAN_LSTM': ['datasets/*']},
     description='CEEMDAN_LSTM is a Python project for decomposition-integration forecasting models based on EMD methods and LSTM.',
