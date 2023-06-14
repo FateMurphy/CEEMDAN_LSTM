@@ -36,7 +36,7 @@ cl.quick_keras_predict(data=None) # default dataset: sse_index.csv
 ```
 #### Load dataset
 ```python
-data = cl.load_dataset()
+data = cl.load_dataset() # some built-in dataset eg. sp500.csv hsi.csv ftse.csv nsdaq.csv n225.csv
 # data = pd.read_csv(your_file_path + its_name + '.csv', header=0, index_col=['date'], parse_dates=['date'])
 ```
 
