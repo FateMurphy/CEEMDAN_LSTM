@@ -229,12 +229,13 @@ def check_dataset(data, show_data=False, decom_mode=None, redecom_list=None):
     # Set target
     if 'target' not in check_data.columns:
         if len(check_data.columns) == 1: check_data.columns=['target']
-        elif decom_mode.lower() in ['emd', 'eemd', 'ceemdan']: 
+        elif decom_mode.lower() in ['emd', 'eemd', 'ceemdan', 'vmd', 'ovmd', 'svmd']: 
             check_data['target'] = check_data.sum(axis=1).values
             print('Warning! The sum of all column has been set as the target column.') 
         else:
             check_data.columns = check_data.columns[1:].insert(0, 'target') # set first columns as target 
             print('Warning! The first column has been set as the target column.')  
+            print('Or, you can set DECOM_MODE as "emd" to let the sum of all column be the target column.')  
 
     # Show the inputting data
     if show_data:
@@ -279,14 +280,12 @@ def name_predictor(now, name, module, model, decom_mode=None, redecom_list=None,
     """
     Name the predictor for convenient saving.
     """
-
     redecom_mode = ''
     if redecom_list is not None: # Check redecom_list and get redecom_mode
         try: redecom_list = pd.DataFrame(redecom_list, index=[0]) 
         except: raise ValueError("Invalid input for redecom_list! Please input eg. None, '{'co-imf0':'vmd', 'co-imf1':'emd'}'.")
         for i in range(redecom_list.size): redecom_mode = redecom_mode+redecom_list.values.ravel()[i]+'-'
 
-    from tensorflow.python.keras.models import Sequential
     if type(model) == str and '.h5' not in str(model):
         if 'Single' not in name:
             if decom_mode is not None: 
@@ -302,11 +301,55 @@ def name_predictor(now, name, module, model, decom_mode=None, redecom_list=None,
     print('==============================================================================')
     return name
 
-# Change name
-def change_name(s): 
-    s = s.replace('-','_')
-    s = s.replace(' ','_')
-    return s
+# Output Result
+def output_result(df_result, name, time, imf='', type='Result'):
+    # Output Result and add Runtime
+    """
+    Input and Parameters:
+    ---------------------
+    name            - predictor_name
+    time            - end-start
+
+    Output
+    ---------------------
+    df_result 
+    """
+    imf_name = ''
+    if imf != '' and imf != 'Final': 
+        imf_name = ' of '+imf
+        print('\n----------'+name+imf_name+' Finished----------')
+    else: print('\n================'+name+' Finished================')
+    if isinstance(df_result, tuple) and len(df_result)==3: # (df_result, df_eval, df_loss)
+        df_result[1]['Runtime'] = time # Output Runtime
+        df_result[1]['IMF'] = imf
+        df_result[0].name, df_result[1].name, df_result[2].name = name+' Result'+imf_name, name+' Evaluation'+imf_name, name+' Loss'+imf_name
+        print(df_result[1]) # print df_eval
+    elif isinstance(df_result, tuple) and len(df_result)==2 and type=='Evaluation': # (df_pred_result, df_eval_result)
+        from CEEMDAN_LSTM.data_preprocessor import eval_result
+        df_pred_result = df_result[0]
+        final_eval = eval_result(df_pred_result['predict'], df_pred_result['real'])
+        final_eval['Runtime'] = time # Output Runtime
+        final_eval['IMF'] = imf
+        print(final_eval)
+        df_plot = df_pred_result[['real', 'predict']]
+        final_eval = pd.concat((final_eval, df_result[1]))
+        df_pred_result.name, final_eval.name, df_plot.name = name+' Result', name+' Evaluation', name+' Result'
+        df_result = [df_pred_result, final_eval, df_plot]
+    elif isinstance(df_result, tuple) and len(df_result)==2 and type=='Result': # (df_result, df_next_result)
+        df_result[0]['Runtime'] = time # Output Runtime
+        df_result[0]['IMF'] = imf
+        df_result = pd.concat((df_result[0], df_result[1]))
+        df_result.name = name+' Result'
+        print(df_result)
+    elif isinstance(df_result, pd.DataFrame) and type=='Result': # (df_result)
+        df_result['Runtime'] = time # Output Runtime
+        df_result['IMF'] = imf
+        df_result.name = name+' Result'+imf_name
+        print(df_result)
+    else: raise ValueError('Unknown Error.')
+    return df_result
+    
+
 
 # Plot and save data
 def plot_save_result(data, name=None, plot=True, save=True, path=None, type=None): 
@@ -332,34 +375,32 @@ def plot_save_result(data, name=None, plot=True, save=True, path=None, type=None
     else: name = ''
     if PATH is None: save = False
 
-    # Default output function
-    def default_output(df): 
-        if 'Evaluation' not in df.name:
-            if plot:
-                df.plot(figsize=(8,4))
-                plt.title(df.name, fontsize=16, y=1)
-                if save: plt.savefig(FIG_PATH + name + change_name(df.name)+'.jpg', dpi=300, bbox_inches='tight') # Save figure
-                plt.show()
-        if save: pd.DataFrame.to_csv(df, LOG_PATH + name + change_name(df.name)+'.csv', encoding='utf-8') # Save log
+    def default_output(df, file_name): 
+        if 'Evaluation' not in df.name and 'Next' not in df.name and plot:
+            df.plot(figsize=(6,3))
+            plt.title(df.name, fontsize=12, y=1)
+            if save: plt.savefig(FIG_PATH + file_name +'.jpg', dpi=300, bbox_inches='tight') # Save figure
+            plt.show()
+        if save: pd.DataFrame.to_csv(df, LOG_PATH + file_name +'.csv', encoding='utf-8') # Save log
 
     # Ouput
     if isinstance(data, tuple):
         for df in data: # plot and save forecasting result
-            try: df.name # Check df Name
-            except: df.name = 'output'
-            default_output(df)
+            try: file_name = name + df.name.replace('-','_').replace(' ','_') # Check df Name
+            except: df.name, file_name = 'output', name+'output'
+            default_output(df, file_name)
     elif isinstance(data, pd.DataFrame):
-        try: data.name # Check data Name
-        except: data.name = 'output'
+        try: file_name = name + data.name.replace('-','_').replace(' ','_') # Check data Name
+        except: data.name, file_name = 'output', name+'output'
         if 'decom' in data.name: # plot and save plot EMD result
             if plot:
-                data.plot(figsize=(8,2*data.columns.size), subplots=True)
-                plt.gcf().suptitle(data.name, fontsize=16, y=0.9) # Enlarge and Move the title     
-                if save: plt.savefig(FIG_PATH + name + change_name(data.name)+'.jpg', dpi=300, bbox_inches='tight') # Save figure
+                data.plot(figsize=(6,1*data.columns.size), subplots=True)
+                plt.gcf().suptitle(data.name, fontsize=12, y=0.9) # Enlarge and Move the title     
+                if save: plt.savefig(FIG_PATH + file_name +'.jpg', dpi=300, bbox_inches='tight') # Save figure
                 plt.show()
-            if save: pd.DataFrame.to_csv(data, LOG_PATH + name + change_name(data.name)+'.csv', encoding='utf-8') # Save log
+            if save: pd.DataFrame.to_csv(data, LOG_PATH + file_name +'.csv', encoding='utf-8') # Save log
         else:
-            try: default_output(data)
+            try: default_output(data, file_name)
             except: print('Data is:\n', data)
     else:
         try: series = pd.Series(data)
@@ -384,8 +425,8 @@ def quick_keras_predict(data=None, **kwargs):
 
     kr = keras_predictor(**kwargs)
     df_result = kr.hybrid_keras_predict(data=data, show=True, plot=True, save=True)
-    
     return df_result
+
 
 
 # Run the details forecasting

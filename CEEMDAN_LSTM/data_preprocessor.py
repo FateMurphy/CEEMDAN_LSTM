@@ -189,7 +189,7 @@ def decom_svmd(series=None, FORECAST_LENGTH=None, optimize=True, vmd_params=None
         print('Warning! The vmdpy module will delete the last one data point of series before decomposition')
         series = series[1:]
     if FORECAST_LENGTH is None: raise ValueError('Please input FORECAST_LENGTH.')
-    if vmd_params is None and optimize == False: vmd_params = {'K':10, 'tau':0}
+    if vmd_params is None and optimize == False: vmd_params = {'K':10, 'tau':0, 'alpha':2000}
 
     series_train = series[:-FORECAST_LENGTH]
     series_test = series[-FORECAST_LENGTH:]
@@ -235,66 +235,71 @@ def inte(df_decom=None, inte_list='auto', num_clusters=3):
     """
     
     # Check input
+    df_inte_list = []
     try: df_decom = pd.DataFrame(df_decom)
     except: raise ValueError('Invalid input of df_decom!')
     if 'target' in df_decom.columns: 
         tmp_target = df_decom['target']
         df_decom = df_decom.drop('target', axis=1, inplace=False)
     else: tmp_target = None
-    df_decom.columns = ['imf'+str(i) for i in range(df_decom.columns.size)]
 
-    # Check inte_list
-    df_inte_list = []
-    if inte_list is not None:
-        if str(inte_list).lower() == 'auto': # Without 
-            df_sampen = inte_sampen(df_decom)
-            inte_list = inte_kmeans(df_sampen, num_clusters)
-        elif isinstance(inte_list, pd.DataFrame):
-            if len(inte_list) == 1: inte_list = inte_list.T
-        elif type(inte_list) == str and len(inte_list) < df_decom.columns.size:
-            df_list, n, c, s = {}, 0, 0, 0
-            for i in inte_list: s = s + int(i) 
-            if s != df_decom.columns.size: raise ValueError('Invalid inte_list! %s (%s columns) does not match the number of dataset columns=%s.'%(inte_list, s, df_decom.columns.size)) 
-            for i in inte_list:
-                for j in ['imf'+str(x) for x in range(n, n+int(i))]: 
-                    df_list[j], n = c, n + 1
-                c += 1
-            inte_list = pd.DataFrame(df_list, index=['Cluster']).T
-        elif type(inte_list) == str and len(inte_list) == df_decom.columns.size:
-            inte_list = pd.DataFrame([int(x) for x in inte_list], columns=['Cluster'], index=['imf'+str(x) for x in range(len(inte_list))])
-        elif type(inte_list) == int and inte_list < df_decom.columns.size:
-            print('Integrate %d columns to be %d columns by K-means.'%(df_decom.columns.size, inte_list))
-            df_sampen = inte_sampen(df_decom)
-            inte_list = inte_kmeans(df_sampen, inte_list)
-        else:
-            try: inte_list = pd.DataFrame(inte_list, columns=['Cluster'], index=['imf'+str(x) for x in range(len(inte_list))])
-            except: raise ValueError('Invalid inte_list of %s with type %s. Check your input or length.'%(inte_list, type(inte_list)))
+    if df_decom.columns.size > num_clusters:
+        df_decom.columns = ['imf'+str(i) for i in range(df_decom.columns.size)]
 
-        # Integrate, name, and resort
-        df_tmp = pd.DataFrame()
-        for i in range(inte_list.values.max()+1):
-            df_tmp['imf'+str(i)] = df_decom[inte_list[(inte_list['Cluster']==i)].index].sum(axis=1)
-            df_tmp_list = pd.DataFrame(df_tmp['imf'+str(i)])
-            df_tmp_list.columns = ['target']
-            df_inte_list.append(pd.concat((df_tmp_list, df_decom[inte_list[(inte_list['Cluster']==i)].index]), axis=1))
-        df_inte = df_tmp.T # Use Sample Entropy sorting the Co-IMFs
-        df_inte['sampen'] = inte_sampen(df_tmp).values
-        df_inte.sort_values(by=['sampen'], ascending=False, inplace=True)
-        df_inte.index = ['co-imf'+str(i) for i in range(inte_list.values.max()+1)]
-        df_inte = df_inte.drop('sampen', axis=1, inplace=False).T
+        # Check inte_list
+        if inte_list is not None:
+            if str(inte_list).lower() == 'auto': # Without 
+                df_sampen = inte_sampen(df_decom)
+                inte_list = inte_kmeans(df_sampen, num_clusters)
+            elif isinstance(inte_list, pd.DataFrame):
+                if len(inte_list) == 1: inte_list = inte_list.T
+            elif type(inte_list) == str and len(inte_list) < df_decom.columns.size:
+                df_list, n, c, s = {}, 0, 0, 0
+                for i in inte_list: s = s + int(i) 
+                if s != df_decom.columns.size: raise ValueError('Invalid inte_list! %s (%s columns) does not match the number of dataset columns=%s.'%(inte_list, s, df_decom.columns.size)) 
+                for i in inte_list:
+                    for j in ['imf'+str(x) for x in range(n, n+int(i))]: 
+                        df_list[j], n = c, n + 1
+                    c += 1
+                inte_list = pd.DataFrame(df_list, index=['Cluster']).T
+            elif type(inte_list) == str and len(inte_list) == df_decom.columns.size:
+                inte_list = pd.DataFrame([int(x) for x in inte_list], columns=['Cluster'], index=['imf'+str(x) for x in range(len(inte_list))])
+            elif type(inte_list) == int and inte_list < df_decom.columns.size:
+                print('Integrate %d columns to be %d columns by K-means.'%(df_decom.columns.size, inte_list))
+                df_sampen = inte_sampen(df_decom)
+                inte_list = inte_kmeans(df_sampen, inte_list)
+            else:
+                try: inte_list = pd.DataFrame(inte_list, columns=['Cluster'], index=['imf'+str(x) for x in range(len(inte_list))])
+                except: raise ValueError('Invalid inte_list of %s with type %s. Check your input or length.'%(inte_list, type(inte_list)))
 
-        # Rename df_inte_list
-        for i in range(len(df_inte.columns)):
-            for j in range(len(df_inte.columns)):
-                try:
-                    if df_inte_list[i]['target'].sum() == df_inte['co-imf'+str(j)].sum():
-                        df_inte_list[i].columns = ['co-imf'+str(j)] + list(df_inte_list[i].columns)[1:]
-                except: break
+            # Integrate, name, and resort
+            df_tmp = pd.DataFrame()
+            for i in range(inte_list.values.max()+1):
+                df_tmp['imf'+str(i)] = df_decom[inte_list[(inte_list['Cluster']==i)].index].sum(axis=1)
+                df_tmp_list = pd.DataFrame(df_tmp['imf'+str(i)])
+                df_tmp_list.columns = ['target']
+                df_inte_list.append(pd.concat((df_tmp_list, df_decom[inte_list[(inte_list['Cluster']==i)].index]), axis=1))
+            df_inte = df_tmp.T # Use Sample Entropy sorting the Co-IMFs
+            df_inte['sampen'] = inte_sampen(df_tmp).values
+            df_inte.sort_values(by=['sampen'], ascending=False, inplace=True)
+            df_inte.index = ['co-imf'+str(i) for i in range(inte_list.values.max()+1)]
+            df_inte = df_inte.drop('sampen', axis=1, inplace=False).T
 
-        # Output
-        df_inte.name = 'df_inte_list_is_'+''.join(str(x) for x in inte_list.values.ravel()) # record integrate list
-        df_inte.index = df_decom.index
-    else: df_inte = df_decom
+            # Rename df_inte_list
+            for i in range(len(df_inte.columns)):
+                for j in range(len(df_inte.columns)):
+                    try:
+                        if df_inte_list[i]['target'].sum() == df_inte['co-imf'+str(j)].sum():
+                            df_inte_list[i].columns = ['co-imf'+str(j)] + list(df_inte_list[i].columns)[1:]
+                    except: break
+
+            # Output
+            df_inte.name = 'df_inte_list_is_'+''.join(str(x) for x in inte_list.values.ravel()) # record integrate list
+            df_inte.index = df_decom.index
+        else: df_inte = df_decom
+    else: 
+        df_decom.columns = ['co-imf'+str(i) for i in range(df_decom.columns.size)] # less than num_clusters, stop inte and output
+        df_inte = df_decom
     if tmp_target is not None: df_inte['target'] = tmp_target # add tmp target column
     return df_inte, df_inte_list
     
@@ -318,9 +323,11 @@ def inte_sampen(df_decom=None, max_len=1, tol=0.1, nor=True, **kwargs):
     ---------------------
     df_sampen  - the Sample Entropy of each time series in pd.Dataframe
     """
-    try: df_decom = pd.DataFrame(df_decom)
-    except: raise ValueError('Invalid input of df_decom!')
-    if 'target' in df_decom.columns: df_decom = df_decom.drop('target', axis=1, inplace=False)
+    try: 
+        df_decom = pd.DataFrame(df_decom)
+        if 'target' in df_decom.columns: df_decom = df_decom.drop('target', axis=1, inplace=False)
+        if 'imf0' not in df_decom.columns: df_decom.columns = ['imf'+str(i) for i in range(df_decom.columns.size)]
+    except: raise ValueError('Invalid input of df_decom!') 
     try: import sampen
     except ImportError: raise ImportError('Cannot import sampen, run: pip install sampen!')
     np_sampen = []
@@ -363,7 +370,7 @@ def inte_kmeans(df_sampen=None, num_clusters=3, random_state=0, **kwargs):
 # 3.Other Mains
 # ------------------------------------------------------
 # 3.Main. Redecompose (inculd decom() and inte())
-def redecom(data=None, show_data=False, decom_mode='ceemdan', inte_list='auto', redecom_list={'co-imf0':'ovmd'}, vmd_params=None, FORECAST_LENGTH=None, **kwargs):
+def redecom(data=None, show=False, decom_mode='ceemdan', inte_list='auto', redecom_list={'co-imf0':'ovmd'}, vmd_params=None, FORECAST_LENGTH=None, **kwargs):
     """
     redecompose data adaptively and return results in pd.Dataframe.
     Example: df_decom = cl.redecom(series, decom_mode='ceemdan', redecom_list={'co-imf0':'vmd'})
@@ -372,7 +379,7 @@ def redecom(data=None, show_data=False, decom_mode='ceemdan', inte_list='auto', 
     Input and Parameters:
     ---------------------
     series          - the time series (1D) to be decomposed
-    show_data       - show the inputting data set
+    show            - show the inputting data set
     decom_mode      - the decomposing methods eg. 'emd', 'eemd', 'ceemdan', 'vmd'
     inte_list       - the integration list, eg. pd.Dataframe, (int) 3, (str) '233', (list) [0,0,1,1,1,2,2,2], ...
     redecom_list    - the re-decomposition list eg. '{'co-imf0':'vmd', 'co-imf1':'emd'}', pd.DataFrame
@@ -386,7 +393,7 @@ def redecom(data=None, show_data=False, decom_mode='ceemdan', inte_list='auto', 
     """
 
     from CEEMDAN_LSTM.core import check_dataset
-    data = check_dataset(data, show_data, decom_mode, redecom_list)
+    data = check_dataset(data, show, decom_mode, redecom_list)
     if vmd_params is not None and type(vmd_params) != dict: raise ValueError('Invalid input of vmd_params!') 
     if len(data.columns) == 1: 
         df_decom = decom(data[data.columns[0]], decom_mode=decom_mode, FORECAST_LENGTH=FORECAST_LENGTH)
@@ -415,7 +422,7 @@ def redecom(data=None, show_data=False, decom_mode='ceemdan', inte_list='auto', 
             df_inte = df_inte.drop(i, axis=1, inplace=False)
         df_inte.name = inte_columns+'_'+str(best_params_dict) # record redecomposition parameters
     else: df_inte.name = 'None'
-    if show_data:
+    if show:
         print('\nPart of preprocessing dataset (inculde training and test set):')
         print(df_inte)
     return df_inte, df_redecom_list
