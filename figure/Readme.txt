@@ -1,5 +1,7 @@
 These are flowcharts of different methods:
 
+Sklearn predictor has similar methods, now supporting the respective forecasting method.
+
 Ensemble forecasting method 
 ---------------------------------------
 kr = cl.keras_predictor(REDECOM_LIST=None)
