@@ -12,22 +12,22 @@ Carbon price forecasting based on CEEMDAN and LSTM, Applied Energy, 2022, Volume
 
 ## Install
 ### (1) PyPi (recommended)
-The quickest way to install package is through pip.
+The quickest way to install the package is through pip.
 ```python
 pip install CEEMDAN_LSTM
 ```
-### (2) From package
-Download the package `CEEMDAN_LSTM-1.2a0.tar.gz` by click `Code` -> `Download ZIP`. After unzipping, move the package where you like.
+### (2) From the package
+Download the package `CEEMDAN_LSTM-1.2a0.tar.gz` by clicking `Code` -> `Download ZIP`. After unzipping, move the package where you like.
 ```python
 pip install .(your file path)/CEEMDAN_LSTM-1.2a0.tar.gz
 ```
 ### (3) From source
-If you want to modify the code, you should download the code and build package yourself. The source is publicaly available and hosted on GitHub: https://github.com/FateMurphy/CEEMDAN_LSTM. To download the code you can either go to the source code page and click `Code` -> `Download ZIP`, or use git command line.  
-After modify the code, you can install the modified package by using command line:
+If you want to modify the code, you should download the code and build the package yourself. The source is publically available and hosted on GitHub: https://github.com/FateMurphy/CEEMDAN_LSTM. To download the code, you can either go to the source code page and click `Code` -> `Download ZIP`, or use the git command line.  
+After modifying the code, you can install the modified package by using the command line:
 ```python
 python setup.py install
 ```
-Or, you can link to the path for the convenient modification, eg. `sys.path.append(.your file path/)`, and then import.
+Or, you can link to the path for convenient modification, eg. `sys.path.append(.your file path/)`, and then import.
 
 ## Import and quickly predict
 ```python
@@ -41,7 +41,7 @@ data = cl.load_dataset() # some built-in dataset eg. sp500.csv hsi.csv ftse.csv 
 ```
 
 ## Help and example
-You can use the code to call for a help. You can copy the code from the output of `cl.show_keras_example()` to run forecasting and help you learn more about the code.
+You can use the code to call for help. You can copy the code from the output of `cl.show_keras_example()` to run forecasting and help you learn more about the code.
 ```python
 cl.help()
 cl.show_keras_example()
@@ -61,18 +61,18 @@ df_result = kr.hybrid_keras_predict(data=series, show=True, plot=True, save=True
 ```
 
 ### 0. Statistical tests (not necessary)
-The code will ouput the reuslt of ADF test, Ljung-Box Test, Jarque-Bera Test, and plot ACF and PACF figures to evaluate stationarity, autocorrelation, and normality.
+The code will output the results of the ADF test, Ljung-Box Test, and Jarque-Bera Test, and plot ACF and PACF figures to evaluate stationarity, autocorrelation, and normality.
 ```python
 cl.statis_tests(series=None)
 ```
 
-### 1.Declare the parameters
-Note, when declare the PATH, folders will be created automatically, inculding the figure and log folders.
+### 1. Declare the parameters
+Note, when declaring the PATH, folders will be created automatically, including the figure and log folders.
 ```python
 kr = cl.keras_predictor(PATH=None, FORECAST_HORIZONS=30, FORECAST_LENGTH=30, KERAS_MODEL='GRU', 
                         DECOM_MODE='CEEMDAN', INTE_LIST='auto', REDECOM_LIST={'co-imf0':'ovmd'},
                         NEXT_DAY=False, DAY_AHEAD=1, NOR_METHOD='minmax', FIT_METHOD='add', 
-                        USE_TPU=False , **kwargs))
+                        USE_TPU=False, **kwargs))
 ```
 
 | HyperParameters | Description | 
@@ -82,13 +82,13 @@ kr = cl.keras_predictor(PATH=None, FORECAST_HORIZONS=30, FORECAST_LENGTH=30, KER
 |FORECAST_LENGTH    |the length of the days to forecast (test set)|
 |KERAS_MODEL        |the Keras model, eg. 'GRU', 'LSTM', 'DNN', 'BPNN', model = Sequential(), or load_model.|
 |DECOM_MODE         |the decomposition method, eg.'EMD', 'EEMD', 'CEEMDAN', 'VMD', 'OVMD', 'SVMD'|
-|INTE_LIST          |the integration list, eg. pd.Dataframe, (int) 3, (str) '233', (list) [0,0,1,1,1,2,2,2], ...|
+|INTE_LIST          |the integration list, eg. 'auto', pd.Dataframe, (int) 3, (str) '233', (list) [0,0,1,1,1,2,2,2], ...|
 |REDECOM_LIST       |the re-decomposition list, eg. '{'co-imf0':'vmd', 'co-imf1':'emd'}', pd.DataFrame|
-|NEXT_DAY           |set True to only predict next out-of-sample value|
+|NEXT_DAY           |set True to only predict the next out-of-sample value|
 |DAY_AHEAD          |define to forecast n days' ahead, eg. 0, 1, 2 (default int 1)|
 |NOR_METHOD         |the normalizing method, eg. 'minmax'-MinMaxScaler, 'std'-StandardScaler, otherwise without normalization|
-|FIT_METHOD         |the fitting method to stablize the forecasting result (not necessarily useful), eg. 'add', 'ensemble' (there some error for ensembleFIT_METHOD, please use add method as default.)|
-|USE_TPU            |change Keras model to TPU model (for google Colab)|
+|FIT_METHOD         |the fitting method to stabilize the forecasting result (not necessarily useful), eg. 'add', 'ensemble' (there some error for ensembleFIT_METHOD, please use add method as default.)|
+|USE_TPU            |change Keras model to TPU model (for Google Colab)|
 
 | Keras Parameters | Description (more details refer to https://keras.io) | 
 | :-----| :----- | 
@@ -97,9 +97,9 @@ kr = cl.keras_predictor(PATH=None, FORECAST_HORIZONS=30, FORECAST_LENGTH=30, KER
 |units              |the units of network layers, which (3 layers) will set to 4*units, 2*units, units, eg. 4-32|
 |activation         |activation function, all layers will be the same, eg. 'tanh', 'relu'|
 |batch_size         |training batch_size for parallel computing, eg. 4-128|
-|shuffle            |whether randomly disorder the training set during training process, eg. True, False|
-|verbose            |report of training process, eg. 0 not displayed, 1 detailed, 2 rough|
-|valid_split        |proportion of validation set during training process, eg. 0.1-0.2|
+|shuffle            |whether randomly disorder the training set during the training process, eg. True, False|
+|verbose            |report of the training process, eg. 0 not displayed, 1 detailed, 2 rough|
+|valid_split        |proportion of validation set during the training process, eg. 0.1-0.2|
 |opt                |network optimizer, eg. 'adam', 'sgd'|
 |opt_lr             |optimizer learning rate, eg. 0.001-0.1|
 |opt_loss           |optimizer loss, eg. 'mse','mae','mape','hinge', refer to https://keras.io/zh/losses/.|
@@ -109,11 +109,11 @@ kr = cl.keras_predictor(PATH=None, FORECAST_HORIZONS=30, FORECAST_LENGTH=30, KER
 ### 2. Forecast
 You can try the following forecasting methods. Note, `kr.` is the class defined in step 1, necessary for the code.
 ```python
-df_result = kr.single_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
-# df_result = kr.ensemble_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
-# df_result = kr.respective_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
-# df_result = kr.hybrid_keras_predict(data, show_data=True, show_model=True, plot_result=True, save_result=True)
-# df_result = kr.multiple_predict(data, run_times=10, predict_method='single', save_each_result=False)
+df_result = kr.single_keras_predict(data, show=True, plot=True, save=True)
+# df_result = kr.ensemble_keras_predict(data, show=True, plot=True, save=True)
+# df_result = kr.respective_keras_predict(data, show=True, plot=True, save=True)
+# df_result = kr.hybrid_keras_predict(data, show=True, plot=True, save=True)
+# df_result = kr.multiple_keras_predict(data, show=True, plot=True, save=True)
 ```
 | Forecast Method | Description | 
 | :-----| :----- | 
@@ -121,8 +121,8 @@ df_result = kr.single_keras_predict(data, show_data=True, show_model=True, plot_
 |Ensemble Method    |Use decomposition-integration Keras model to directly forecast with matrix input|
 |Respective Method  |Use decomposition-integration Keras model to respectively forecast each IMFs with vector input|
 |Hybrid Method      |Use the ensemble method to forecast high-frequency IMF and the respective method for other IMFs.|
-|Multiple Method    |Multiple run of above method|
-|Rolling Method     |Rolling run of above method to avoid the look-ahead bias, but take a long long time|
+|Multiple Method    |Multiple runs of the above method|
+|Rolling Method     |Rolling run of the above method to avoid the look-ahead bias, but take a long long time|
 
 ### 3. Validate 
 #### (1) Plot heatmap
@@ -136,17 +136,30 @@ Dm test will output the DM test statistics and its p-value. You can refer to htt
 rt = cl.dm_test(actual_lst, pred1_lst, pred2_lst, h=1, crit="MSE", power=2)
 ```
 
-### 4. Next-day Forecast
+### 4. Sklearn Forecast
+You can try the following forecasting methods. Note, `sr.` is the defined class, necessary for the code.
+```python
+# SKLEARN_MODEL = LASSO, SVM, or LGB(LightGBM); OPTIMIZER = Bayes, GS(GridSearch)
+sr = cl.sklearn_predictor(PATH=path, FORECAST_HORIZONS=30, FORECAST_LENGTH=30,
+                          SKLEARN_MODEL='LASSO', OPTIMIZER='Bayes',
+                          DECOM_MODE='OVMD', INTE_LIST='auto')
+df_result = sr.single_sklearn_predict(data, show=True, plot=True, save=True)
+# df_result = sr.respective_sklearn_predict(data, show=True, plot=True, save=True)
+# df_result = sr.multiple_sklearn_predict(series_close, run_times=10, predict_method='single')
+```
+
+### 5. Next-day Forecast
 Set `NEXT_DAY=True`.
 ```python
 kr = cl.keras_predictor(NEXT_DAY=True)
-df_result = kr.hybrid_keras_predict(data, show=True, plotTrue, save=True)
+df_result = kr.hybrid_keras_predict(data, show=True, plot=True, save=True)
 # df_result = kr.rolling_keras_predict(data, predict_method='single')
 ```
+
 ## Discussion
 ### 1. Look-ahead bias
 As the predictor will decompose the entire series first before splitting the training and test set, there is a look-ahead bias. It is still an issue about how to avoid the look-ahead bias.
 ### 2. VMD decompose
-The vmdpy module can only decompose the even-numbered length time series. When forecasting an odd-numbered length one, this module will delete the oldest data point. It is still an issue how to modify VMD decompose. Moreover, selecting the K parameters is important for the VMD method, and hence, I will add some methods to choose a suitable K, such as OVMD, REI, SampEn, and so on.
+The vmdpy module can only decompose the even-numbered length time series. When forecasting an odd-numbered length one, this module will delete the oldest data point. It is still an issue how to modify VMD decomposition. Moreover, selecting the K parameters is important for the VMD method, and hence, I will add some methods to choose a suitable K, such as OVMD, REI, SampEn, and so on.
 ### 3. Rolling forecasting 
 Rolling forecasting costs a lot of time. Like a 30-forecast-length prediction, it will run 30 times cl.hybrid_keras_predict(), so I am not sure if it is really effective or not.
