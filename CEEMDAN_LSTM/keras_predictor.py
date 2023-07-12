@@ -248,7 +248,7 @@ class keras_predictor:
             model = self.build_model(shape, model_name, model_file) # Build the model # Use model.summary() to show the model structure
         return model
 
-    # 1.Main Forecast by Keras
+    # 1.3 Main Forecast by Keras
     def keras_predict(self, data=None, show_model=False, fitting_set=None, **kwargs): # GRU forecasting function
         """
         Forecast by Keras
@@ -280,7 +280,7 @@ class keras_predictor:
         x_train, x_test, y_train, y_test, scalarY, next_x = create_train_test_set(data, self.FORECAST_LENGTH, self.FORECAST_HORIZONS, self.NEXT_DAY, self.NOR_METHOD, self.DAY_AHEAD, fitting_set) 
 
         # Convert to tensor = tf.constant()
-        today_x = x_train[-1].reshape(1, x_train.shape[1], x_train.shape[2]) # aviod resahpe tf.constant - tensor
+        today_x = x_train[-1].reshape(1, x_train.shape[1], x_train.shape[2]) # aviod resahpe tf.constant -> tensor
         x_train = constant(x_train) # x_train = x_train.reshape((x_train.shape[0], x_train.shape[1], x_train.shape[2])) 
         if not self.NEXT_DAY: x_test = constant(x_test) # x_test = x_test.reshape((x_test.shape[0], x_test.shape[1], x_test.shape[2])) 
         
@@ -292,7 +292,7 @@ class keras_predictor:
         # Name model
         try: 
             data.name = data.name.replace('-','_').replace(' ','_')
-            if '.h5' not in str(data.name): data.name = data.name + '.h5'
+            if '.h5' not in str(data.name): data.name = data.name+'.h5'
         except: data.name = 'Keras_model.h5'
         
         # Load and save model
@@ -340,13 +340,13 @@ class keras_predictor:
         if not self.NEXT_DAY:
             # Get general results and evaluate
             y_predict = model(x_test) # Predict # replace y_predict = model.predict(x_test) to aviod warning
-            df_eval = eval_result(y_test, y_predict) # Evaluate model
             y_predict = np.array(y_predict).ravel().reshape(-1,1) 
             if scalarY is not None: 
                 y_test = scalarY.inverse_transform(y_test)
                 y_predict = scalarY.inverse_transform(y_predict) # De-normalize 
             if self.TARGET is not None: result_index = self.TARGET.index[-self.FORECAST_LENGTH:] # Forecasting result idnex
             else: result_index = range(len(y_test.ravel()))
+            df_eval = eval_result(y_test, y_predict) # Evaluate model
             df_result = pd.DataFrame({'real': y_test.ravel(), 'predict': y_predict.ravel()}, index=result_index) # Output
             return df_result, df_eval, df_loss
         else:
@@ -367,7 +367,7 @@ class keras_predictor:
 
     # 2.Advanced forecasting functions
     # ------------------------------------------------------
-    # 2.1. Single Method (directly forecast)
+    # 2.1 Single Method (directly forecast)
     def single_keras_predict(self, data=None, show=False, plot=False, save=False, **kwargs):
         """
         Single Method (directly forecast)
@@ -398,8 +398,8 @@ class keras_predictor:
         now = datetime.now()
         predictor_name = name_predictor(now, 'Single', 'Keras', self.KERAS_MODEL, None, None, self.NEXT_DAY)
         data = check_dataset(data, show, self.DECOM_MODE, None)
-        data.name = (predictor_name+'_model.h5').replace('-','_').replace(' ','_')
-        self.TARGET = data['target']
+        data.name = (predictor_name+' model.h5')
+        if self.TARGET is None: self.TARGET = data['target']
 
         # Forecast
         start = time.time()
@@ -407,13 +407,13 @@ class keras_predictor:
         end = time.time()
 
         # Output
-        df_result = output_result(df_result, predictor_name, end-start)
+        df_result = output_result(df_result, predictor_name, end-start, imf='Final', next_day=self.NEXT_DAY) # (df_result, df_eval, df_loss) for keras_predict()
         plot_save_result(df_result, name=now, plot=plot, save=save, path=self.PATH)
         return df_result
 
 
 
-    # 2.2. Ensemble Method (decompose then directly forecast)
+    # 2.2 Ensemble Method (decompose then directly forecast)
     def ensemble_keras_predict(self, data=None, show=False, plot=False, save=False, **kwargs):
         """
         Ensemble Method (decompose then directly forecast)
@@ -448,21 +448,21 @@ class keras_predictor:
         start = time.time()
         from CEEMDAN_LSTM.data_preprocessor import redecom
         df_redecom, df_redecom_list = redecom(data, show, self.DECOM_MODE, self.INTE_LIST, self.REDECOM_LIST, self.VMD_PARAMS, self.FORECAST_LENGTH)
-        df_redecom.name = (predictor_name+'_model.h5').replace('-','_').replace(' ','_') # model name input to self.keras_predict
-        self.TARGET = df_redecom['target']
+        df_redecom.name = predictor_name+'_model.h5' # model name input to self.keras_predict
+        if self.TARGET is None: self.TARGET = df_redecom['target']
 
         # Forecast
         df_result = self.keras_predict(data=df_redecom, show_model=show, **kwargs)
         end = time.time()
 
         # Output
-        df_result = output_result(df_result, predictor_name, end-start)
+        df_result = output_result(df_result, predictor_name, end-start, imf='Final', next_day=self.NEXT_DAY) # return (df_result, df_eval, df_loss)
         plot_save_result(df_result, name=now, plot=plot, save=save, path=self.PATH)
         return df_result
 
 
     
-    # 2.3. Respective Method (decompose then respectively forecast each IMFs)
+    # 2.3 Respective Method (decompose then respectively forecast each IMFs)
     def respective_keras_predict(self, data=None, show=False, plot=False, save=False, **kwargs):
         """
         Respective Method (decompose then respectively forecast each IMFs)
@@ -497,26 +497,20 @@ class keras_predictor:
         start = time.time()
         from CEEMDAN_LSTM.data_preprocessor import redecom
         df_redecom, df_redecom_list = redecom(data, show, self.DECOM_MODE, self.INTE_LIST, self.REDECOM_LIST, self.VMD_PARAMS, self.FORECAST_LENGTH)
-        self.TARGET = df_redecom['target']
-        # set target and model
-        try: 
-            if 'Keras_Forecasting' in data.name: predictor_name = data.name
-            else: data.name, self.TARGET = '', df_redecom['target']
-        except: data.name, self.TARGET = '', df_redecom['target']
+        if self.TARGET is None: self.TARGET = df_redecom['target']
 
         # Forecast and ouput each Co-IMF
         df_pred_result = pd.DataFrame(index = self.TARGET.index[-self.FORECAST_LENGTH:0]) # df for storing forecasting result
         df_eval_result = pd.DataFrame(columns=['Scale', 'R2', 'RMSE', 'MAE', 'MAPE', 'Runtime', 'IMF']) # df for storing evaluation result
         df_next_result = pd.DataFrame(columns=['today_real', 'today_pred', 'next_pred', 'Runtime', 'IMF']) # df for storing Next-day forecasting result
         for imf in df_redecom.columns.difference(['target']):
-            df_redecom[imf].name = (predictor_name+'_of_'+imf+'_model.h5').replace('-','_').replace(' ','_')
+            df_redecom[imf].name = predictor_name+'_of_'+imf+'_model.h5'
             time1 = time.time()
             df_result = self.keras_predict(data=df_redecom[imf], show_model=show, **kwargs)
             time2 = time.time()
-            df_result = output_result(df_result, predictor_name, time2-time1, imf)
+            df_result = output_result(df_result, predictor_name, time2-time1, imf, next_day=self.NEXT_DAY) # return (imf_pred, imf_eval, imf_loss)
             if not self.NEXT_DAY:
-                df_pred_result[imf+'-real'] = df_result[0]['real'] # add real values
-                df_pred_result[imf+'-predict'] = df_result[0]['predict'] # add forecasting result
+                df_pred_result = pd.concat((df_pred_result, df_result[0]), axis=1) # add forecasting result
                 df_eval_result = pd.concat((df_eval_result, df_result[1])) # add evaluation result
                 plot_save_result(df_result, name=now, plot=plot, save=False, path=self.PATH) # do not save Co-IMF results
             else: df_next_result = pd.concat((df_next_result, df_result)) # add Next-day forecasting result
@@ -524,24 +518,22 @@ class keras_predictor:
         end = time.time()
 
         # Final Output
-        # Final Output
         if not self.NEXT_DAY: 
-            df_pred_result['real'] = self.TARGET[-self.FORECAST_LENGTH:]
+            df_pred_result['real'] = df_redecom['target'][-self.FORECAST_LENGTH:]
             df_pred_result['predict'] = df_pred_result[[x for x in df_pred_result.columns if 'predict' in x]].sum(axis=1)
-            df_result = output_result((df_pred_result,df_eval_result), predictor_name, end-start, imf='Final', type='Evaluation')
-            plot_save_result(df_result[2], name=now, plot=plot, save=save, path=self.PATH) # only plot result
-            df_result = (df_result[0], df_result[1])
+            df_result = (df_pred_result, df_eval_result)
         else:
-            df_result = pd.DataFrame({'today_real': self.TARGET.values[-1], 'today_pred': df_next_result['today_pred'].sum(), 
-                                      'next_pred': df_next_result['next_pred'].sum()}, index=[df_next_result.index[0]]) # Output
-            df_result = output_result((df_result, df_next_result), predictor_name, end-start, imf='Final', type='Result')
-        plot_save_result(df_result, name=now, plot=False, save=save, path=self.PATH) # save result 
-        return df_result
+            df_result = pd.DataFrame({'today_real': df_redecom['target'][-1:], 'today_pred': df_next_result['today_pred'].sum(), 
+                                      'next_pred': df_next_result['next_pred'].sum()}) # Output
+            df_result = (df_result, df_next_result)
+        df_result = output_result(df_result, predictor_name, end-start, imf='Final', next_day=self.NEXT_DAY)
+        plot_save_result(df_result, name=now, plot=plot, save=save, path=self.PATH)
+        return df_result 
 
 
 
-    # 2.4. Hybrid Method (decompose then forecast high-frequency IMF by ensemble method and forecast other by respective method)
-    def hybrid_keras_predict(self, data=None, show=False, plot=False, save=False, **kwargs):
+    # 2.4 Hybrid Method (decompose then forecast high-frequency IMF by ensemble method and forecast other by respective method)
+    def hybrid_keras_predict(self, data=None, show=False, plot=False, save=False, method='respective', **kwargs):
         """
         Hybrid Method (decompose then forecast high-frequency IMF by ensemble method and forecast others by respective method)
         Use the ensemble method to forecast high-frequency IMF and the respective method for other IMFs.
@@ -570,34 +562,31 @@ class keras_predictor:
         # Name
         now = datetime.now()
         predictor_name = name_predictor(now, 'Hybrid', 'Keras', self.KERAS_MODEL, self.DECOM_MODE, self.REDECOM_LIST, self.NEXT_DAY)
+        if method != 'ensemble' and method != 'respective': raise ValueError("Please input a vaild predict method! eg. 'ensemble', 'respective'.")
 
         # Decompose, integrate, re-decompose
         start = time.time()
         from CEEMDAN_LSTM.data_preprocessor import redecom
         df_redecom, df_redecom_list = redecom(data, show, self.DECOM_MODE, self.INTE_LIST, self.REDECOM_LIST, self.VMD_PARAMS, self.FORECAST_LENGTH)
-        df_rest_columns, df_rest_list = [], []
-        for x in df_redecom_list: # create df_rest_list
-            df_redecom[x.name] = x['target']
-            df_rest_columns.append(x.name)
-            df_redecom = df_redecom[df_redecom.columns.difference(x.columns.difference(['target']))]
-        for x in df_redecom.columns.difference(df_rest_columns): 
-            if x != 'target': df_rest_list.append(df_redecom[x])
-        self.TARGET = df_redecom['target']
+        if self.TARGET is None: self.TARGET = df_redecom['target']
 
         # Forecast
         df_pred_result = pd.DataFrame(index = self.TARGET.index[-self.FORECAST_LENGTH:0]) # df for storing forecasting result
         df_eval_result = pd.DataFrame(columns=['Scale', 'R2', 'RMSE', 'MAE', 'MAPE', 'Runtime', 'IMF']) # df for storing evaluation result
         df_next_result = pd.DataFrame(columns=['today_real', 'today_pred', 'next_pred', 'Runtime', 'IMF']) # df for storing Next-day forecasting result
-        for df in df_redecom_list+df_rest_list: # both ensemble (matrix-input) and respective (vector-input) method 
+        for df in df_redecom_list: # both ensemble (matrix-input) and respective (vector-input) method 
             imf = df.name
-            df.name = (predictor_name+'_of_'+imf+'_model.h5').replace('-','_').replace(' ','_') # Save model
+            if 'redecom' not in imf:
+                if method=='respective': df = pd.DataFrame(df[imf]) # if method=='ensemble': df = df
+            else: imf = imf[8:]
+            df.rename(columns={imf: 'target'}, inplace=True)
+            df.name = predictor_name+'_of_'+imf+'_model.h5' # Save model
             time1 = time.time()
             df_result = self.keras_predict(data=df, show_model=show, **kwargs) # the ensemble method with matrix input 
             time2 = time.time()
-            df_result = output_result(df_result, predictor_name, time2-time1, imf)
-            if not self.NEXT_DAY: 
-                df_pred_result[imf+'-real'] = df_result[0]['real'] # add real values
-                df_pred_result[imf+'-predict'] = df_result[0]['predict'] # add forecasting result
+            df_result = output_result(df_result, predictor_name, time2-time1, imf, next_day=self.NEXT_DAY) # return (imf_pred, imf_eval, imf_loss)
+            if not self.NEXT_DAY:
+                df_pred_result = pd.concat((df_pred_result, df_result[0]), axis=1) # add forecasting result
                 df_eval_result = pd.concat((df_eval_result, df_result[1])) # add evaluation result
                 plot_save_result(df_result, name=now, plot=plot, save=False, path=self.PATH) # do not save Co-IMF results
             else: df_next_result = pd.concat((df_next_result, df_result)) # add Next-day forecasting result
@@ -605,21 +594,20 @@ class keras_predictor:
 
         # Fitting 
         if not self.NEXT_DAY: 
+            df_pred_result['real'] = self.TARGET[-self.FORECAST_LENGTH:]
             if self.FIT_METHOD == 'ensemble': # fitting method
                 print('Fitting of the ensemble method is running...')        
                 fitting_set = df_pred_result[[x for x in df_pred_result.columns if '-predict' in x]]
-                df_redecom.name = (predictor_name+'_of_Fitting_model.h5').replace('-','_').replace(' ','_') # Save model
+                df_redecom.name = predictor_name+'_of_Fitting_model.h5' # Save model
                 time1 = time.time()
                 df_result = self.keras_predict(data=df_redecom, show_model=show, fitting_set=fitting_set, **kwargs) # the ensemble method with matrix input 
                 time2 = time.time()
-                df_result = output_result(df_result, predictor_name, time2-time1, 'fitting')
-                df_eval_result = pd.concat((df_eval_result, df_result[1])) # add evaluation result
-                df_pred_result['real'] = self.TARGET[-self.FORECAST_LENGTH:]
+                df_result = output_result(df_result, predictor_name, time2-time1, imf='fitting', next_day=self.NEXT_DAY)
+                df_eval_result = pd.concat((df_eval_result, df_result[1])) # add evaluation result of fitting
                 df_pred_result['add-predict'] = df_pred_result[[x for x in df_pred_result.columns if '-predict' in x]].sum(axis=1) # add all imf predict result
-                df_pred_result['predict'] = df_result[0]['predict']
+                df_pred_result['predict'] = df_result[0]['fitting-predict']
                 plot_save_result(df_result, name=now, plot=plot, save=False, path=self.PATH) # do not save Co-IMF results
             else: # adding method
-                df_pred_result['real'] = self.TARGET[-self.FORECAST_LENGTH:]
                 df_pred_result['predict'] = df_pred_result[[x for x in df_pred_result.columns if '-predict' in x]].sum(axis=1) # add all imf predict result
         else: # if self.NEXT_DAY:
             if self.FIT_METHOD == 'ensemble': # fitting method
@@ -630,11 +618,11 @@ class keras_predictor:
                 for i in range(df_next_result.index.size): # add next_pred of each imf to fitting_set
                     point_row = df_next_result[i:i+1]
                     fitting_set[point_row['IMF'][0]][fitting_set_next_index] = point_row['next_pred'][0]
-                df_redecom.name = (predictor_name+'_of_Fitting_model.h5').replace('-','_').replace(' ','_') # Save model
+                df_redecom.name = predictor_name+'_of_Fitting_model.h5' # Save model
                 time1 = time.time()
                 df_result = self.keras_predict(data=df_redecom, show_model=show, fitting_set=fitting_set, **kwargs) # the ensemble method with matrix input 
                 time2 = time.time()
-                df_result = output_result(df_result, predictor_name, time2-time1, imf='fitting')
+                df_result = output_result(df_result, predictor_name, time2-time1, imf='fitting', next_day=self.NEXT_DAY)
                 df_next_result = pd.concat((df_next_result, df_result)) # add Next-day forecasting result
                 today_result = df_result['today_pred']
                 next_reuslt = df_result['next_pred']
@@ -644,15 +632,15 @@ class keras_predictor:
         end = time.time()
 
         # Final Output
-        if not self.NEXT_DAY: 
-            df_result = output_result((df_pred_result,df_eval_result), predictor_name, end-start, imf='Final', type='Evaluation')
-            plot_save_result(df_result[2], name=now, plot=plot, save=save, path=self.PATH) # only plot result 
-            df_result = (df_result[0], df_result[1])
+        if not self.NEXT_DAY: df_result = (df_pred_result, df_eval_result)
         else:
-            df_result = pd.DataFrame({'today_real': self.TARGET.values[-1], 'today_pred': today_result, 'next_pred': next_reuslt}, index=[df_next_result.index[0]]) # Output
-            df_result = output_result((df_result, df_next_result), predictor_name, end-start, imf='Final', type='Result')
-        plot_save_result(df_result, name=now, plot=False, save=save, path=self.PATH) # save result 
-        return df_result
+            df_result = pd.DataFrame({'today_real': df_redecom['target'][-1:], 'today_pred': today_result, 'next_pred': next_reuslt}) # Output                
+            df_result = (df_result, df_next_result)
+        df_result = output_result(df_result, predictor_name, end-start, imf='Final', next_day=self.NEXT_DAY)
+        plot_save_result(df_result, name=now, plot=plot, save=save, path=self.PATH)
+        return df_result 
+
+
 
     # A class used to hide the print
     class HiddenPrints: 
@@ -666,7 +654,7 @@ class keras_predictor:
             sys.stdout.close()
             sys.stdout = self._original_stdout
 
-    # 2.5. Multiple Run Predictor
+    # 2.5 Multiple Run Predictor
     def multiple_keras_predict(self, data=None, run_times=10, predict_method=None, **kwargs):
         """
         Multiple Run Predictor, multiple run of above method
@@ -694,7 +682,7 @@ class keras_predictor:
         # Initialize 
         now = datetime.now()
         data = check_dataset(data, False, self.DECOM_MODE, self.REDECOM_LIST)
-        self.TARGET = data['target']
+        if self.TARGET is None: self.TARGET = data['target']
         
         if self.PATH is None: print('Do not set a PATH! It is recommended to set a PATH to prevent the loss of running results')
         if predict_method is None: raise ValueError("Please input a predict method! eg. 'single', 'ensemble', 'respective', 'hybrid'.")
@@ -705,33 +693,39 @@ class keras_predictor:
         # Forecast
         start = time.time()
         df_pred_result = pd.DataFrame(index = self.TARGET.index[-self.FORECAST_LENGTH:0]) # df for storing forecasting result
-        df_pred_result['real'] = self.TARGET[-self.FORECAST_LENGTH:]
         df_eval_result = pd.DataFrame(columns=['Scale', 'R2', 'RMSE', 'MAE', 'MAPE', 'Runtime', 'IMF']) # df for storing evaluation result
+        df_next_result = pd.DataFrame(columns=['today_real', 'today_pred', 'next_pred', 'Runtime', 'IMF']) # df for storing Next-day forecasting result
         for i in range(run_times):
             print('Run %d is running...'%i, end='')
             time1 = time.time()
             with self.HiddenPrints():
                 if predict_method == 'Single': df_result = self.single_keras_predict(data=data, **kwargs)
-                if predict_method == 'Ensemble': df_result = self.ensemble_keras_predict(data=data, **kwargs) 
-                if predict_method == 'Respective': df_result = self.respective_keras_predict(data=data, **kwargs)
-                if predict_method == 'Hybrid': df_result = self.hybrid_keras_predict(data=data, **kwargs)
-                df_result[1]['IMF'] = predict_method + '-Run' + str(i)
-                df_eval_result = pd.concat((df_eval_result, df_result[1])) # add evaluation result
-                df_pred_result['Run'+str(i)+'-predict'] = df_result[0]['predict']
-                df_result = (df_pred_result, df_eval_result)
-                df_pred_result.name, df_eval_result.name = predictor_name+' Result', predictor_name+' Evaluation'
-                plot_save_result(df_result, name=now, plot=False, save=True, path=self.PATH)
-            time2 = time.time()
+                elif predict_method == 'Ensemble': df_result = self.ensemble_keras_predict(data=data, **kwargs) 
+                elif predict_method == 'Respective': df_result = self.respective_keras_predict(data=data, **kwargs)
+                elif predict_method == 'Hybrid': df_result = self.hybrid_keras_predict(data=data, **kwargs)
+                elif predict_method == 'Hybrid-ensemble': df_result = self.hybrid_keras_predict(data=data, method='ensemble', **kwargs)
+                else: raise ValueError("Please input a vaild predict method! eg. 'single', 'ensemble', 'respective', 'hybrid'.")
+                time2 = time.time()
+                df_result = output_result(df_result, predictor_name, time2-time1, imf='Final', run=i, next_day=self.NEXT_DAY)
+                if not self.NEXT_DAY:
+                    df_pred_result = pd.concat((df_pred_result, df_result[0]), axis=1) # add forecasting result
+                    df_eval_result = pd.concat((df_eval_result, df_result[1])) # add evaluation result
+                    df_pred_result.name, df_eval_result.name = predictor_name+' Result', predictor_name+' Evaluation'
+                    df_result = (df_pred_result, df_eval_result)
+                else: 
+                    df_next_result = pd.concat((df_next_result, df_result)) # add Next-day forecasting result
+                    df_next_result.name = predictor_name+' Result'
+                    df_result = df_next_result
+                plot_save_result(df_result, name=now, plot=False, save=True, path=self.PATH) # Temporary storage
             print('taking time: %.3fs'%(time2-time1))
         end = time.time()
         print('\n============='+predictor_name+' Finished=============')
         print('Running time: %.3fs'%(end-start))
-        plot_save_result(df_result, name=now, plot=False, save=True, path=self.PATH)
         return df_result
 
 
 
-    # 2.6.Rolling Method (forecast each value one by one)
+    # 2.6 Rolling Method (forecast each value one by one)
     def rolling_keras_predict(self, data=None, predict_method=None, transfer_learning=False, out_of_sample=False, **kwargs):
         """
         Rolling Method (forecast each value one by one to avoid lookahead bias)
@@ -845,7 +839,7 @@ class keras_predictor:
         df_pred_result['real'] = data[-self.FORECAST_LENGTH:]
         if predict_method == 'Single' or predict_method == 'Ensemble': df_pred_result['predict'] = df_next_result['next_pred'].values
         else: df_pred_result['predict'] = df_next_result.loc[df_next_result['IMF'] == 'Final']['next_pred'].values
-        df_eval_result = eval_result(df_pred_result['predict'], df_pred_result['real'])
+        df_eval_result = eval_result(df_pred_result['real'], df_pred_result['predict'])
         df_eval_result['Runtime'] = end-start # Output Runtime
         df_eval_result['Run'] = 'Final'
         print(df_eval_result)

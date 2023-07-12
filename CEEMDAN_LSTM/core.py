@@ -284,7 +284,7 @@ def name_predictor(now, name, module, model, decom_mode=None, redecom_list=None,
     if redecom_list is not None: # Check redecom_list and get redecom_mode
         try: redecom_list = pd.DataFrame(redecom_list, index=[0]) 
         except: raise ValueError("Invalid input for redecom_list! Please input eg. None, '{'co-imf0':'vmd', 'co-imf1':'emd'}'.")
-        for i in range(redecom_list.size): redecom_mode = redecom_mode+redecom_list.values.ravel()[i]+'-'
+        for i in (redecom_list+redecom_list.columns.str[-1]).values.ravel(): redecom_mode = redecom_mode+i+'-'
 
     if type(model) == str and '.h5' not in str(model):
         if 'Single' not in name:
@@ -302,51 +302,81 @@ def name_predictor(now, name, module, model, decom_mode=None, redecom_list=None,
     return name
 
 # Output Result
-def output_result(df_result, name, time, imf='', type='Result'):
+def output_result(df_result, name, time, imf='', next_day=False, run=None):
     # Output Result and add Runtime
     """
     Input and Parameters:
     ---------------------
     name            - predictor_name
     time            - end-start
+    imf             - Final or Co-imf0 or ...
+    run             - multiple run times mark
 
     Output
     ---------------------
     df_result 
     """
-    imf_name = ''
+
+    imf_name, run_name = '', ''
+    if run is not None: run_name = 'Run'+str(run)+'-'
     if imf != '' and imf != 'Final': 
         imf_name = ' of '+imf
         print('\n----------'+name+imf_name+' Finished----------')
     else: print('\n================'+name+' Finished================')
-    if isinstance(df_result, tuple) and len(df_result)==3: # (df_result, df_eval, df_loss)
-        df_result[1]['Runtime'] = time # Output Runtime
-        df_result[1]['IMF'] = imf
-        df_result[0].name, df_result[1].name, df_result[2].name = name+' Result'+imf_name, name+' Evaluation'+imf_name, name+' Loss'+imf_name
-        print(df_result[1]) # print df_eval
-    elif isinstance(df_result, tuple) and len(df_result)==2 and type=='Evaluation': # (df_pred_result, df_eval_result)
+    
+    def finish_evaluation(final_pred, df_eval=None):
         from CEEMDAN_LSTM.data_preprocessor import eval_result
-        df_pred_result = df_result[0]
-        final_eval = eval_result(df_pred_result['predict'], df_pred_result['real'])
-        final_eval['Runtime'] = time # Output Runtime
-        final_eval['IMF'] = imf
+        if df_eval is None: # single method
+            final_eval = eval_result(final_pred['real'], final_pred['predict'])
+            final_eval['Runtime'], final_eval['IMF'] = time, imf
+        elif len(df_eval)==1: 
+            final_eval = df_eval # multiple method
+            final_eval['Runtime'], final_eval['IMF'] = time, imf
+        elif 'Final' in df_eval['IMF'].values: final_eval = df_eval # multiple method
+        else: # respective method
+            final_eval = eval_result(final_pred['real'], final_pred['predict'])
+            final_eval['Runtime'], final_eval['IMF'] = time, imf
+            final_eval = pd.concat((final_eval, df_result[1]))
+        final_eval.name = name+' Evaluation'+imf_name
         print(final_eval)
-        df_plot = df_pred_result[['real', 'predict']]
-        final_eval = pd.concat((final_eval, df_result[1]))
-        df_pred_result.name, final_eval.name, df_plot.name = name+' Result', name+' Evaluation', name+' Result'
-        df_result = [df_pred_result, final_eval, df_plot]
-    elif isinstance(df_result, tuple) and len(df_result)==2 and type=='Result': # (df_result, df_next_result)
-        df_result[0]['Runtime'] = time # Output Runtime
-        df_result[0]['IMF'] = imf
-        df_result = pd.concat((df_result[0], df_result[1]))
-        df_result.name = name+' Result'
-        print(df_result)
-    elif isinstance(df_result, pd.DataFrame) and type=='Result': # (df_result)
-        df_result['Runtime'] = time # Output Runtime
-        df_result['IMF'] = imf
-        df_result.name = name+' Result'+imf_name
-        print(df_result)
-    else: raise ValueError('Unknown Error.')
+        return final_eval
+
+    if not next_day:
+        if isinstance(df_result, tuple) and len(df_result)==3: # input (df_result, df_eval, df_loss)
+            final_pred, final_pred.name = df_result[0], name+' Result'+imf_name
+            df_result[2].name = name+' Loss'+imf_name
+            final_eval = finish_evaluation(final_pred, df_result[1]) # evaluation for final
+            final_pred.columns = run_name+final_pred.columns
+            if 'of' in imf_name: # not Final
+                final_pred.columns = run_name+imf+'-'+final_pred.columns 
+                df_result[2].columns = run_name+imf+'-'+df_result[2].columns 
+            final_eval['IMF'] = run_name + final_eval['IMF']
+            df_result = (final_pred, final_eval, df_result[2]) # return (final_pred, final_eval)
+        elif isinstance(df_result, tuple) and len(df_result)==2: # input (df_pred, df_eval) 
+            final_pred, final_pred.name = df_result[0], name+' Result'+imf_name
+            final_eval = finish_evaluation(final_pred, df_result[1]) # evaluation for final
+            final_pred.columns = run_name+final_pred.columns
+            if 'of' in imf_name: final_pred.columns = run_name+imf+'-'+final_pred.columns # not Final
+            final_eval['IMF'] = run_name + final_eval['IMF']
+            df_result = (final_pred, final_eval) # return (final_pred, final_eval)
+        elif isinstance(df_result, pd.DataFrame): # input df_pred 
+            final_pred, final_pred.name = df_result, name+' Result'
+            final_eval = finish_evaluation(final_pred)
+            df_result = (final_pred, final_eval) # return (final_pred, final_eval)
+        else: raise ValueError('Unknown Error.')
+    else: # for next-day predict
+        if isinstance(df_result, tuple) and len(df_result)==2 and next_day==True: # (df_result, df_next_result) for next-day predict
+            df_result[0]['Runtime'] = time 
+            df_result[0]['IMF'] = imf
+            df_result = pd.concat((df_result[0], df_result[1]))
+            df_result.name = name+' Result'
+            df_result['IMF'] = run_name + df_result['IMF']
+            print(df_result)
+        elif isinstance(df_result, pd.DataFrame) and next_day==True: # input df_next_pred
+            if len(df_result)==1: df_result['Runtime'], df_result['IMF'], df_result.name  = time, imf, name+' Result'+imf_name
+            df_result['IMF'] = run_name + df_result['IMF']
+            print(df_result)
+        else: raise ValueError('Unknown Error.')
     return df_result
     
 
@@ -377,11 +407,12 @@ def plot_save_result(data, name=None, plot=True, save=True, path=None, type=None
 
     def default_output(df, file_name): 
         if 'Evaluation' not in df.name and 'Next' not in df.name and plot:
-            df.plot(figsize=(6,3))
+            if df.columns.size<3: df.plot(figsize=(7,4))
+            elif 'real' in df.columns and 'predict' in df.columns: df[['real', 'predict']].plot(figsize=(8,4))
             plt.title(df.name, fontsize=12, y=1)
             if save: plt.savefig(FIG_PATH + file_name +'.jpg', dpi=300, bbox_inches='tight') # Save figure
             plt.show()
-        if save: pd.DataFrame.to_csv(df, LOG_PATH + file_name +'.csv', encoding='utf-8') # Save log
+        if save: pd.DataFrame.to_csv(df, LOG_PATH+file_name+'.csv', encoding='utf-8') # Save log
 
     # Ouput
     if isinstance(data, tuple):
@@ -394,7 +425,7 @@ def plot_save_result(data, name=None, plot=True, save=True, path=None, type=None
         except: data.name, file_name = 'output', name+'output'
         if 'decom' in data.name: # plot and save plot EMD result
             if plot:
-                data.plot(figsize=(6,1*data.columns.size), subplots=True)
+                data.plot(figsize=(7,1*data.columns.size), subplots=True)
                 plt.gcf().suptitle(data.name, fontsize=12, y=0.9) # Enlarge and Move the title     
                 if save: plt.savefig(FIG_PATH + file_name +'.jpg', dpi=300, bbox_inches='tight') # Save figure
                 plt.show()
@@ -405,7 +436,7 @@ def plot_save_result(data, name=None, plot=True, save=True, path=None, type=None
     else:
         try: series = pd.Series(data)
         except: raise ValueError('Sorry! %s is not supported to plot and save, please input pd.DataFrame, pd.Series, nd.array(<=2D)'%type(data))
-        default_output(series)
+        default_output(series, file_name)
     if PATH is not None and save: print('The figures and logs of forecasting results have been saved into', PATH)
 
 
