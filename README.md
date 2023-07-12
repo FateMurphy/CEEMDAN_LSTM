@@ -136,7 +136,15 @@ Dm test will output the DM test statistics and its p-value. You can refer to htt
 rt = cl.dm_test(actual_lst, pred1_lst, pred2_lst, h=1, crit="MSE", power=2)
 ```
 
-### 4. Sklearn Forecast
+### 4. Next-day Forecast
+Set `NEXT_DAY=True`.
+```python
+kr = cl.keras_predictor(NEXT_DAY=True)
+df_result = kr.hybrid_keras_predict(data, show=True, plot=True, save=True)
+# df_result = kr.rolling_keras_predict(data, predict_method='single')
+```
+
+## Sklearn Forecast
 You can try the following forecasting methods. Note, `sr.` is the defined class, necessary for the code.
 ```python
 # SKLEARN_MODEL = LASSO, SVM, or LGB(LightGBM); OPTIMIZER = Bayes, GS(GridSearch)
@@ -146,14 +154,6 @@ sr = cl.sklearn_predictor(PATH=path, FORECAST_HORIZONS=30, FORECAST_LENGTH=30,
 df_result = sr.single_sklearn_predict(data, show=True, plot=True, save=True)
 # df_result = sr.respective_sklearn_predict(data, show=True, plot=True, save=True)
 # df_result = sr.multiple_sklearn_predict(series_close, run_times=10, predict_method='single')
-```
-
-### 5. Next-day Forecast
-Set `NEXT_DAY=True`.
-```python
-kr = cl.keras_predictor(NEXT_DAY=True)
-df_result = kr.hybrid_keras_predict(data, show=True, plot=True, save=True)
-# df_result = kr.rolling_keras_predict(data, predict_method='single')
 ```
 
 ## Discussion
