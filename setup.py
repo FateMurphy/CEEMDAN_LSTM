@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='CEEMDAN_LSTM',
-    version='1.2b2',
+    version='1.2b3',
     packages=setuptools.find_packages(),
     install_requires=['numpy >= 1.17.3',
                       'pandas >= 1.2.0',
