@@ -4,8 +4,8 @@ GitHub: https://github.com/FateMurphy/CEEMDAN_LSTM
 Future work: sklearn_predictor
 
 ## Background 
-CEEMDAN_LSTM is a Python module for decomposition-integration forecasting models based on EMD methods and LSTM. It aims at helping beginners quickly make a decomposition-integration forecasting by `CEEMDAN`, Complete Ensemble Empirical Mode Decomposition with Adaptive Noise [(Torres et al. 2011)](https://ieeexplore.ieee.org/abstract/document/5947265/), and `LSTM`, Long Short-Term Memory recurrent neural network [(Hochreiter and Schmidhuber, 1997)](https://ieeexplore.ieee.org/abstract/document/6795963). If you use or refer to the content of this module, please cite paper: [(F. Zhou, Z. Huang, C. Zhang,
-Carbon price forecasting based on CEEMDAN and LSTM, Applied Energy, 2022, Volume 311, 118601, ISSN 0306-2619.)](https://doi.org/10.1016/j.apenergy.2022.118601.)
+CEEMDAN_LSTM is a Python module for decomposition-integration forecasting models based on EMD methods and LSTM. It aims at helping beginners quickly make a decomposition-integration forecasting by `CEEMDAN`, Complete Ensemble Empirical Mode Decomposition with Adaptive Noise [(Torres et al. 2011)](https://ieeexplore.ieee.org/abstract/document/5947265/), and `LSTM`, Long Short-Term Memory recurrent neural network [(Hochreiter and Schmidhuber, 1997)](https://ieeexplore.ieee.org/abstract/document/6795963). If you use or refer to the content of this module, please cite the paper: [(F. Zhou, Z. Huang, C. Zhang,
+Carbon price forecasting based on CEEMDAN and LSTM, Applied Energy, 2022, Volume 311, 118601, ISSN 0306-2619.)](https://doi.org/10.1016/j.apenergy.2022.118601).
 ### Flowchart
 ![](https://github.com/FateMurphy/CEEMDAN_LSTM/blob/main/figure/Hybrid%20forecasting%20method.svg)
 #### Note, as it decomposes the entire series first, there is some look-ahead bias.
