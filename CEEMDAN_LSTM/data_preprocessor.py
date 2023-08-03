@@ -326,7 +326,7 @@ def inte_kmeans(df_decom=None, num_clusters=3, random_state=0, **kwargs):
 
     # Get integrating form by K-Means
     try: from sklearn.cluster import KMeans
-    except ImportError: raise ImportError('Cannot import sklearn, run: pip install sklearn!')
+    except ImportError: raise ImportError('Cannot import sklearn, run: pip install scikit-learn!')
     if df_decom.columns.size > num_clusters:
         df_sampen = inte_sampen(df_decom)
         try: df_sampen = pd.DataFrame(df_sampen)
@@ -485,7 +485,7 @@ def normalize_dataset(data=None, FORECAST_LENGTH=None, NOR_METHOD='MinMax'):
     
     # import 
     try: from sklearn.preprocessing import MinMaxScaler, StandardScaler
-    except ImportError: raise ImportError('Cannot import sklearn, run: pip install sklearn!')
+    except ImportError: raise ImportError('Cannot import sklearn, run: pip install scikit-learn!')
     try: data = pd.DataFrame(data)
     except: raise ValueError('Invalid input!')
 
