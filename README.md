@@ -1,7 +1,7 @@
 CEEMDAN_LSTM
 ===
 GitHub: https://github.com/FateMurphy/CEEMDAN_LSTM  
-Future work: sklearn_predictor
+Future work: CFS
 
 ## Background 
 CEEMDAN_LSTM is a Python module for decomposition-integration forecasting models based on EMD methods and LSTM. It aims at helping beginners quickly make a decomposition-integration forecasting by `CEEMDAN`, Complete Ensemble Empirical Mode Decomposition with Adaptive Noise [(Torres et al. 2011)](https://ieeexplore.ieee.org/abstract/document/5947265/), and `LSTM`, Long Short-Term Memory recurrent neural network [(Hochreiter and Schmidhuber, 1997)](https://ieeexplore.ieee.org/abstract/document/6795963). If you use or refer to the content of this module, please cite the paper: [(F. Zhou, Z. Huang, C. Zhang,
@@ -17,9 +17,9 @@ The quickest way to install the package is through pip.
 pip install CEEMDAN_LSTM
 ```
 ### (2) From the package
-Download the package `CEEMDAN_LSTM-1.2a0.tar.gz` by clicking `Code` -> `Download ZIP`. After unzipping, move the package where you like.
+Download the package `CEEMDAN_LSTM-1.2.tar.gz` by clicking `Code` -> `Download ZIP`. After unzipping, move the package where you like.
 ```python
-pip install .(your file path)/CEEMDAN_LSTM-1.2a0.tar.gz
+pip install .(your file path)/CEEMDAN_LSTM-1.2.tar.gz
 ```
 ### (3) From source
 If you want to modify the code, you should download the code and build the package yourself. The source is publically available and hosted on GitHub: https://github.com/FateMurphy/CEEMDAN_LSTM. To download the code, you can either go to the source code page and click `Code` -> `Download ZIP`, or use the git command line.  
@@ -131,7 +131,7 @@ You need to install `seaborn` first, and the input should be 2D-array.
 cl.plot_heatmap(data, corr_method='pearson', fig_path=None)
 ```
 #### (2) Diebold-Mariano-Test (DM test)
-Dm test will output the DM test statistics and its p-value. You can refer to https://github.com/johntwk/Diebold-Mariano-Test.
+DM test will output the DM test statistics and its p-value. You can refer to https://github.com/johntwk/Diebold-Mariano-Test.
 ```python
 rt = cl.dm_test(actual_lst, pred1_lst, pred2_lst, h=1, crit="MSE", power=2)
 ```
