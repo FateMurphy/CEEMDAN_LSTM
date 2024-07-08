@@ -6,6 +6,8 @@
 #
 # Created: 2021-10-1 22:37
 # Updated: 2022-9-12 17:28
+# Updated: 2023-7-14 00:50
+# Updated: 2024-7-08 10:55
 # Author: Feite Zhou
 # Email: jupiterzhou@foxmail.com
 # URL: 'http://github.com/FateMurphy/CEEMDAN_LSTM'
@@ -44,6 +46,7 @@ def help():
     print("-------------------------------")
     print("cl.decom(series=None, decom_mode='ceemdan', **kwargs)")
     print("cl.decom_vmd(series=None, alpha=2000, tau=0, K=10, DC=0, init=1, tol=1e-7, **kwargs)")
+    print("cl.decom_ovmd(series=None, vmd_params=None, trials=100)")
     print("cl.inte(df_decom=None, inte_list=None, num_clusters=3)")
     print("cl.inte_sampen(df_decom=None, max_len=1, tol=0.1, nor=True, **kwargs)")
     print("cl.inte_kmeans(df_sampen=None, num_clusters=3, random_state=0, **kwargs)")
@@ -78,7 +81,10 @@ def help():
     print("-------------------------------")
     print("This class is still under compilation.")
     print("IMPORTANT! Please change parameters via sr = cl.sklearn_predictor().")
-    print("cl.svm_predict(self, data=None, grid_search_times=5, show_data=False, plot_result=False, save_result=False)")
+    print("cl.single_sklearn_predict(self, data=None, show=False, plot=False, save=False, **kwargs)")
+    print("cl.respective_sklearn_predict(self, data=None, show=False, plot=False, save=False, **kwargs)")
+    print("cl.multiple_sklearn_predict(self, data=None, run_times=10, predict_method=None, **kwargs)")
+
 
 
 # An keras example
@@ -89,9 +95,10 @@ def show_keras_example():
     print("===============================")
     print("\nprint('\\n0.Initialize')")
     print("print('-------------------------------')")
+    print("import pandas as pd")
     print("import CEEMDAN_LSTM as cl")
     print("import matplotlib.pyplot as plt")
-    print("kr = cl.keras_predictor(epochs=10)")
+    print("kr = cl.keras_predictor(epochs=100)")
     print("\nprint('\\n1.Load raw data')")
     print("print('-------------------------------')")
     print("dataset = cl.load_dataset()")
@@ -110,18 +117,18 @@ def show_keras_example():
     print("plt.show() # plot")
     print("\nprint('\\n4.K-Means Cluster by Sample Entropy')")
     print("print('-------------------------------')")
-    print("df_integrate_form = cl.inte_kmeans(df_sampen)")
-    print("print(df_integrate_form) # show")
+    print("df_integrate_list = cl.inte_kmeans(df_sampen)")
+    print("print(df_integrate_list) # show")
     print("\nprint('\\n5.Integrate IMFs and Residue to be 3 Co-IMFs')")
     print("print('-------------------------------')")
-    print("df_integrate_result = cl.inte(df_ceemdan, df_integrate_form)")
+    print("df_integrate_result = cl.inte(df_ceemdan, df_integrate_list)")
     print("df_integrate_result = df_integrate_result[0]")
     print("df_integrate_result.plot(title='Integrated IMFs (Co-IMFs) of CEEMDAN', subplots=True, figsize=(6,3)) # plot")
     print("plt.show() # plot")
     print("\nprint('\\n6.Secondary Decompose the high-frequency Co-IMF0 by OVMD')")
     print("print('-------------------------------')")
     print("df_vmd_co_imf0 = cl.decom(df_integrate_result['co-imf0'], decom_mode='ovmd')")
-    print("df_vmd_co_imf0.plot(title='OVMD Decomposition of Co-IMF0', subplots=True, figsize=(6,11)) # plot")
+    print("df_vmd_co_imf0.plot(title='OVMD Decomposition of Co-IMF0', subplots=True, figsize=(6,1*(df_vmd_co_imf0.columns.size))) # plot")
     print("plt.show() # plot")
     print("\nprint('\\n7.Predict Co-IMF0 by matrix-input GRU (ensemble method)')")
     print("print('-------------------------------')")
@@ -172,6 +179,7 @@ def show_devices():
             print("Tensorflow version:", tf.__version__)
             print("Available devices:") 
             print(tf.config.list_physical_devices())
+            print('IMPORTANT! For keras deployed on Windows, it is strongly recommended that tensorflow<=2.10.0, otherwise CUDA acceleration cannot be used ')
         except: 
             import torch # if install Pytorch
             print("Pytorch version:", torch.__version__)
@@ -186,13 +194,13 @@ def load_dataset(dataset_name='sse_index.csv'):
     Available dataset 'sse_index.csv';
     Input:
     ---------------------
-    dataset_name   - the datasets in this module check them in '/datasets/'
+    dataset_name   - the datasets in this module check them in '\\datasets\\'
     
     Output:
     ---------------------
     df_raw_data    - pd.DataFrame or pd.Series
     """
-    dataset_location = os.path.dirname(os.path.realpath(__file__)) + '/datasets/'
+    dataset_location = os.path.dirname(os.path.realpath(__file__)) + '\\datasets\\'
     df_raw_data = pd.read_csv(dataset_location+dataset_name, header=0, index_col=['date'], parse_dates=['date'])
     return df_raw_data
 
@@ -264,11 +272,11 @@ def check_path(PATH):
     """
 
     if PATH is not None: 
-        if type(PATH) != str: raise TypeError('PATH should be strings such as D:/CEEMDAN_LSTM/.../.')
+        if type(PATH) != str: raise TypeError('PATH should be strings such as D:\\CEEMDAN_LSTM\\...\\.')
         else:
-            if PATH[-1] != '/': PATH = PATH + '/'
-            FIG_PATH = PATH+'figure/'
-            LOG_PATH = PATH+'log/' 
+            if PATH[-1] != '\\': PATH = PATH + '\\'
+            FIG_PATH = PATH+'figure\\'
+            LOG_PATH = PATH+'log\\' 
             # print('Saving path of figures and logs: %s'%(PATH))
             for p in [PATH, FIG_PATH, LOG_PATH]: # Create folders for saving 
                 if not os.path.exists(p): os.makedirs(p)
@@ -286,7 +294,7 @@ def name_predictor(now, name, module, model, decom_mode=None, redecom_list=None,
         except: raise ValueError("Invalid input for redecom_list! Please input eg. None, '{'co-imf0':'vmd', 'co-imf1':'emd'}'.")
         for i in (redecom_list+redecom_list.columns.str[-1]).values.ravel(): redecom_mode = redecom_mode+i+'-'
 
-    if type(model) == str and '.h5' not in str(model):
+    if type(model) == str and '.kreas' not in str(model):
         if 'Single' not in name:
             if decom_mode is not None: 
                 name = name + ' ' + decom_mode.upper() + '-' 
@@ -506,13 +514,13 @@ def details_keras_predict(data=None, fitting=False, **kwargs):
     # 4.K-Means Cluster by Sample Entropy
     print("\n4.K-Means Cluster by Sample Entropy")
     print("-------------------------------")
-    df_integrate_form = inte_kmeans(df_sampen)
-    print(df_integrate_form)
+    df_integrate_list = inte_kmeans(df_sampen)
+    print(df_integrate_list)
 
     # 5.Integrate IMFs and Residue to be 3 Co-IMFs
     print("\n5.Integrate IMFs and Residue to be 3 Co-IMFs")
     print("-------------------------------")
-    df_integrate_result = inte(df_ceemdan, df_integrate_form)
+    df_integrate_result = inte(df_ceemdan, df_integrate_list)
     df_integrate_result = df_integrate_result[0]
     df_integrate_result.plot(title='Integrated IMFs (Co-IMFs) of CEEMDAN', subplots=True, figsize=(6, 3))
     plt.show()
@@ -521,14 +529,13 @@ def details_keras_predict(data=None, fitting=False, **kwargs):
     print("\n6.Secondary Decompose the high-frequency Co-IMF0 by OVMD")
     print("-------------------------------")
     df_vmd_co_imf0 = decom(df_integrate_result['co-imf0'], decom_mode='ovmd')
-    df_vmd_co_imf0.plot(title='OVMD Decomposition of Co-IMF0', subplots=True, figsize=(6, 11))
+    df_vmd_co_imf0.plot(title='OVMD Decomposition of Co-IMF0', subplots=True, figsize=(6, 1*(df_vmd_co_imf0.columns.size)))
     plt.show()
 
     # 7.Predict Co-IMF0 by matrix-input GRU (ensemble method)
     print("\n7.Predict Co-IMF0 by matrix-input GRU (ensemble method)")
     print("-------------------------------")
     time0 = time.time()
-    df_vmd_co_imf0['target'] = df_integrate_result['co-imf0']
     co_imf0_predict_raw, co_imf0_gru_evaluation, co_imf0_train_loss = kr.keras_predict(df_vmd_co_imf0)
     print('======Co-IMF0 Predicting Finished======\n', co_imf0_gru_evaluation)
     time1 = time.time()
@@ -555,35 +562,16 @@ def details_keras_predict(data=None, fitting=False, **kwargs):
     co_imf2_predict_raw.plot(title='Co-IMF2 Predicting Result')
     co_imf2_train_loss.plot(title='Co-IMF2 Training Loss')
     plt.show()
-
-    # 9. Add 3 result to get the final forecasting result (instead fitting method )
-    if not fitting:
-        print("\n9. Add 3 result to get the final forecasting result")
-        print("-------------------------------")
-        forecast_length = 30 # duration
-        series_add_predict_result = co_imf0_predict_raw['predict']+co_imf1_predict_raw['predict']+co_imf2_predict_raw['predict']
-        df_add_predict_raw = pd.DataFrame({'predict': series_add_predict_result.values, 'raw': data[-forecast_length:].values}, index=range(forecast_length))
-        df_add_evaluation = eval_result(data[-forecast_length:],series_add_predict_result)
-        print('======Hybrid CEEMDAN-VMD-GRU Keras Forecasting Finished======\n', df_add_evaluation)
-        end = time.time()
-        print('Total Running time: %.3fs'%(end-start))
-        df_add_predict_raw.plot(title='Hybrid CEEMDAN-VMD-GRU Keras Forecasting Result')
-        # pd.DataFrame.to_csv(df_add_predict_raw, PATH+CODE+'_predict_output.csv')
-        plt.show()
-
-    # 10.Fit 3 result to get the final forecasting result (instead adding method) (kr.hybrid_keras_forecast() can finish all step)
-    else:
-        print("\n9.Fit 3 result to get the final forecasting result")
-        print("-------------------------------")
-        df_fitting_set =  pd.DataFrame({'co-imf0': co_imf0_predict_raw['predict'], 'co-imf1': co_imf1_predict_raw['predict'], 'co-imf2': co_imf2_predict_raw['predict']}, index=range(len(co_imf0_predict_raw)))
-        df_training_set = df_integrate_result
-        df_training_set['target'] = data.values
-        df_predict_raw, df_gru_evaluation, df_train_loss = kr.keras_predict(df_training_set, fitting_set=df_fitting_set)
-        print('======Hybrid CEEMDAN-VMD-GRU Keras Forecasting Finished======\n', df_gru_evaluation)
-        end = time.time()
-        print('Running time: %.3fs'%(end-time3))
-        print('Total Running time: %.3fs'%(end-start))
-        df_predict_raw.plot(title='Hybrid CEEMDAN-VMD-GRU Keras Forecasting with Fitting Result')
-        df_train_loss.plot(title='Hybrid CEEMDAN-VMD-GRU Keras Forecasting with Fitting Training Loss')
-        # pd.DataFrame.to_csv(df_predict_raw, PATH+CODE+'_predict_output.csv')
-        plt.show()
+    
+    print('\n9. Add 3 result to get the final forecasting result')
+    print('-------------------------------')
+    forecast_length = len(co_imf0_predict_raw)
+    series_add_predict_result = co_imf0_predict_raw['predict']+co_imf1_predict_raw['predict']+co_imf2_predict_raw['predict']
+    df_add_predict_raw = pd.DataFrame({'predict': series_add_predict_result.values, 'raw': data[-forecast_length:].values}, index=range(forecast_length))
+    df_add_evaluation = eval_result(data[-forecast_length:],series_add_predict_result)
+    print('======Hybrid CEEMDAN-VMD-GRU Keras Forecasting Finished======\n', df_add_evaluation) # show
+    end = time.time()
+    print('Total Running time: %.3fs'%(end-start))
+    df_add_predict_raw.plot(title='Hybrid CEEMDAN-VMD-GRU Keras Forecasting Result') # plot
+    plt.show() # plot
+    # pd.DataFrame.to_csv(df_add_predict_raw, PATH+'_predict_output.csv')

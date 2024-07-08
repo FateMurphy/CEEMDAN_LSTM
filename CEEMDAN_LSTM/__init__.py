@@ -1,6 +1,6 @@
 ﻿# __init__.py
 
-__version__ = '1.2b3'
+__version__ = '1.2b4'
 __module_name__ = 'CEEMDAN_LSTM'
 
 # Basic

@@ -6,6 +6,8 @@
 #
 # Created: 2021-10-1 22:37
 # Updated: 2022-9-12 17:28
+# Updated: 2023-7-14 00:50
+# Updated: 2024-7-08 10:55
 # Author: Feite Zhou
 # Email: jupiterzhou@foxmail.com
 # URL: 'http://github.com/FateMurphy/CEEMDAN_LSTM'
@@ -44,7 +46,7 @@ class keras_predictor:
     # 0.Initialize
     # ------------------------------------------------------
     def __init__(self, PATH=None, FORECAST_HORIZONS=30, FORECAST_LENGTH=30, KERAS_MODEL='GRU', DECOM_MODE='CEEMDAN', INTE_LIST='auto', 
-                 REDECOM_LIST={'co-imf0':'ovmd'}, NEXT_DAY=False, DAY_AHEAD=1, NOR_METHOD='minmax', FIT_METHOD='add', USE_TPU=False , **kwargs):
+                 REDECOM_LIST={'co-imf0':'ovmd'}, NEXT_DAY=False, DAY_AHEAD=1, NOR_METHOD='minmax', FIT_METHOD='add', USE_TPU=False , VMD_PARAMS=None, **kwargs):
         """
         Initialize the keras_predictor.
         Configuration can be passed as kwargs (keyword arguments).
@@ -55,8 +57,8 @@ class keras_predictor:
         FORECAST_HORIZONS  - also called Timestep or Forecast_horizons or sliding_windows_length in some papers
                            - the length of each input row(x_train.shape), which means the number of previous days related to today
         FORECAST_LENGTH    - the length of the days to forecast (test set)
-        KERAS_MODEL        - the Keras model, eg. 'GRU', 'LSTM', 'DNN', 'BPNN', model = Sequential(), h5 file, dict, pd.DataFrame.
-                           - eg. {'co-imf0':'co_imf0_model.h5', 'co-imf1':'co_imf1_model.h5'}
+        KERAS_MODEL        - the Keras model, eg. 'GRU', 'LSTM', 'DNN', 'BPNN', model = Sequential(), keras file, dict, pd.DataFrame.
+                           - eg. {'co-imf0':'co_imf0_model.keras', 'co-imf1':'co_imf1_model.keras'}
         DECOM_MODE         - the decomposition method, eg.'EMD', 'EEMD', 'CEEMDAN', 'VMD', 'OVDM', 'SMVD'
         INTE_LIST          - the integration list, eg. pd.Dataframe, (int) 3, (str) '233', (list) [0,0,1,1,1,2,2,2], ...
         REDECOM_LIST       - the re-decomposition list eg. '{'co-imf0':'vmd', 'co-imf1':'emd'}', pd.DataFrame
@@ -115,7 +117,7 @@ class keras_predictor:
         self.USE_TPU = bool(USE_TPU)
 
         self.TARGET = None
-        self.VMD_PARAMS = None
+        self.VMD_PARAMS = VMD_PARAMS # {'K':10, 'tau':0, 'alpha':2000}
 
         # Declare Keras parameters
         self.epochs = int(kwargs.get('epochs', 100))
@@ -147,18 +149,19 @@ class keras_predictor:
         if self.dropout < 0 or self.dropout > 1: raise ValueError("Invalid input for dropout! Please input a number between 0 and 1.")
         if self.opt_lr < 0 or self.opt_lr > 1: raise ValueError("Invalid input for opt_lr! Please input a number between 0 and 1.")
         
+        # Check parameters
         if not isinstance(KERAS_MODEL, Sequential): # Check KERAS_MODEL
             if type(KERAS_MODEL) == str: 
-                if '.h5' not in str(self.KERAS_MODEL): self.KERAS_MODEL = KERAS_MODEL.upper()
+                if '.keras' not in str(self.KERAS_MODEL): self.KERAS_MODEL = KERAS_MODEL.upper()
                 else:
-                    if self.PATH is None: raise ValueError("Please set a PATH to load keras model in .h5 file.")
+                    if self.PATH is None: raise ValueError("Please set a PATH to load keras model in .keras file.")
                     if not os.path.exists(self.PATH+self.KERAS_MODEL): raise ValueError("File does not exist:", self.PATH+self.KERAS_MODEL)
             else:
-                if self.PATH is None: raise ValueError("Please set a PATH to load keras model in .h5 file.")
+                if self.PATH is None: raise ValueError("Please set a PATH to load keras model in .keras file.")
                 try: KERAS_MODEL = pd.DataFrame(KERAS_MODEL, index=[0])
-                except: raise ValueError("Invalid input for KERAS_MODEL! Please input eg. 'GRU', 'LSTM', or model = Sequential(), h5 file, dict, pd.DataFrame.")
+                except: raise ValueError("Invalid input for KERAS_MODEL! Please input eg. 'GRU', 'LSTM', or model = Sequential(), keras file, dict, pd.DataFrame.")
                 for file_name in KERAS_MODEL.values.ravel():
-                    if '.h5' not in str(file_name): raise ValueError("Invalid input for KERAS_MODEL values! Please input eg. 'GRU', 'LSTM', or model = Sequential(), h5 file, dict, pd.DataFrame.")
+                    if '.keras' not in str(file_name): raise ValueError("Invalid input for KERAS_MODEL values! Please input eg. 'GRU', 'LSTM', or model = Sequential(), keras file, dict, pd.DataFrame.")
                     if not os.path.exists(self.PATH+file_name): raise ValueError("File does not exist:", self.PATH+file_name)
 
         if type(DECOM_MODE) == str: self.DECOM_MODE = str(DECOM_MODE).upper() # Check DECOM_MODE
@@ -171,6 +174,7 @@ class keras_predictor:
         if self.opt_lr != 0.001 and self.opt == 'adam': self.opt = Adam(learning_rate=self.opt_lr) # Check optimizer
         if self.opt_patience > self.epochs: self.opt_patience = self.epochs // 10 # adjust opt_patience
         if self.stop_patience > self.epochs and self.stop_patience > 10: self.stop_patience = self.epochs // 2 # adjust stop_patience
+        if VMD_PARAMS is not None and type(VMD_PARAMS) != dict: raise ValueError('Invalid input of VMD_PARAMS!') 
         
 
 
@@ -179,7 +183,7 @@ class keras_predictor:
     # 1.1 Build model
     def build_model(self, trainset_shape, model_name='Keras model', model_file=None):
         """
-        Build Keras model, eg. 'GRU', 'LSTM', 'DNN', 'BPNN', 'CUDNNLSTM', 'CUDNNGRU', model = Sequential(), or load_model.
+        Build Keras model, eg. 'GRU', 'LSTM', 'DNN', 'BPNN', model = Sequential(), or load_model.
         """
         if model_file is not None and os.path.exists(str(model_file)):
             print('Load Keras model:', model_file)
@@ -291,24 +295,24 @@ class keras_predictor:
 
         # Name model
         try: 
-            data.name = data.name.replace('-','_').replace(' ','_')
-            if '.h5' not in str(data.name): data.name = data.name+'.h5'
-        except: data.name = 'Keras_model.h5'
+            for i in ['\'',' ','\"','-',':',',','.','{','}','[',']','(',')']: data.name = data.name.replace(i,'')
+            if '.keras' not in str(data.name): data.name = data.name+'.keras'
+        except: data.name = 'Keras_model.keras'
         
         # Load and save model
         model_file = None
         if self.PATH is not None:
             # Load model if get input of self.KERAS_MODEL
             if isinstance(self.KERAS_MODEL, dict): self.KERAS_MODEL = pd.DataFrame(self.KERAS_MODEL, index=[0])
-            if isinstance(self.KERAS_MODEL, pd.DataFrame): # KERAS_MODEL eg. {'co-imf0':'co_imf0_model.h5', 'co-imf1':'co_imf1_model.h5'}
+            if isinstance(self.KERAS_MODEL, pd.DataFrame): # KERAS_MODEL eg. {'co-imf0':'co_imf0_model.keras', 'co-imf1':'co_imf1_model.keras'}
                 for x in self.KERAS_MODEL.columns:
                     if (x).replace('-','_').replace(' ','_') in data.name: model_file = x # change to be key value
                 if model_file is not None: model_file = self.PATH + self.KERAS_MODEL[model_file][0]
                 else: raise KeyError("Cannot match an appropriate model file by the column name of pd.DataFrame. Please check KERAS_MODEL.")
-            if isinstance(self.KERAS_MODEL, str) and '.h5' in str(self.KERAS_MODEL): model_file = self.PATH + self.KERAS_MODEL
+            if isinstance(self.KERAS_MODEL, str) and '.keras' in str(self.KERAS_MODEL): model_file = self.PATH + self.KERAS_MODEL
             # Save model by CheckPoint with model name = data.name = df_redecom.name
             CheckPoint = ModelCheckpoint(self.PATH+data.name, monitor=self.callbacks_monitor, save_best_only=True, verbose=self.verbose, mode='auto') # Save the model to self.PATH after each epoch
-            callbacks_list.append(CheckPoint) # save Keras model in .h5 file eg. predictor_name+'_of_'+imf+'_model.h5'
+            callbacks_list.append(CheckPoint) # save Keras model in .keras file eg. predictor_name+'_of_'+imf+'_model.keras'
 
         # Build or load the model
         if self.USE_TPU: model = self.tpu_model(x_train.shape, data.name, model_file)
@@ -321,6 +325,7 @@ class keras_predictor:
         # plot_model(model, self.PATH+data.name+'.jpg')
 
         # Forecast
+        df_loss = pd.DataFrame({'loss': 0, 'val_loss': 0}, index=[0])
         if self.epochs != 0:
             history = model.fit(x_train, y_train, # Train the model 
                                 epochs=self.epochs, 
@@ -330,13 +335,12 @@ class keras_predictor:
                                 shuffle=self.shuffle, 
                                 callbacks=callbacks_list,
                                 **kwargs)
-
-        # load the best one to predict when set PATH
-        if self.PATH is not None: model = load_model(self.PATH+data.name) 
+            df_loss = pd.DataFrame({'loss': history.history['loss'], 'val_loss': history.history['val_loss']}, index=range(len(history.history['val_loss'])))
+            # load the best one to predict when set PATH
+            if self.PATH is not None: model = load_model(self.PATH+data.name) 
 
         # Get results and evaluate
         from CEEMDAN_LSTM.data_preprocessor import eval_result
-        df_loss = pd.DataFrame({'loss': history.history['loss'], 'val_loss': history.history['val_loss']}, index=range(len(history.history['val_loss'])))
         if not self.NEXT_DAY:
             # Get general results and evaluate
             y_predict = model(x_test) # Predict # replace y_predict = model.predict(x_test) to aviod warning
@@ -398,8 +402,8 @@ class keras_predictor:
         now = datetime.now()
         predictor_name = name_predictor(now, 'Single', 'Keras', self.KERAS_MODEL, None, None, self.NEXT_DAY)
         data = check_dataset(data, show, self.DECOM_MODE, None)
-        data.name = (predictor_name+' model.h5')
-        if self.TARGET is None: self.TARGET = data['target']
+        data.name = (predictor_name+' model.keras')
+        self.TARGET = data['target']
 
         # Forecast
         start = time.time()
@@ -448,8 +452,8 @@ class keras_predictor:
         start = time.time()
         from CEEMDAN_LSTM.data_preprocessor import redecom
         df_redecom, df_redecom_list = redecom(data, show, self.DECOM_MODE, self.INTE_LIST, self.REDECOM_LIST, self.VMD_PARAMS, self.FORECAST_LENGTH)
-        df_redecom.name = predictor_name+'_model.h5' # model name input to self.keras_predict
-        if self.TARGET is None: self.TARGET = df_redecom['target']
+        df_redecom.name = predictor_name+'_model.keras' # model name input to self.keras_predict
+        self.TARGET = df_redecom['target']
 
         # Forecast
         df_result = self.keras_predict(data=df_redecom, show_model=show, **kwargs)
@@ -497,14 +501,14 @@ class keras_predictor:
         start = time.time()
         from CEEMDAN_LSTM.data_preprocessor import redecom
         df_redecom, df_redecom_list = redecom(data, show, self.DECOM_MODE, self.INTE_LIST, self.REDECOM_LIST, self.VMD_PARAMS, self.FORECAST_LENGTH)
-        if self.TARGET is None: self.TARGET = df_redecom['target']
+        self.TARGET = df_redecom['target']
 
         # Forecast and ouput each Co-IMF
         df_pred_result = pd.DataFrame(index = self.TARGET.index[-self.FORECAST_LENGTH:0]) # df for storing forecasting result
         df_eval_result = pd.DataFrame(columns=['Scale', 'R2', 'RMSE', 'MAE', 'MAPE', 'Runtime', 'IMF']) # df for storing evaluation result
         df_next_result = pd.DataFrame(columns=['today_real', 'today_pred', 'next_pred', 'Runtime', 'IMF']) # df for storing Next-day forecasting result
         for imf in df_redecom.columns.difference(['target']):
-            df_redecom[imf].name = predictor_name+'_of_'+imf+'_model.h5'
+            df_redecom[imf].name = predictor_name+'_of_'+imf+'_model.keras'
             time1 = time.time()
             df_result = self.keras_predict(data=df_redecom[imf], show_model=show, **kwargs)
             time2 = time.time()
@@ -568,7 +572,7 @@ class keras_predictor:
         start = time.time()
         from CEEMDAN_LSTM.data_preprocessor import redecom
         df_redecom, df_redecom_list = redecom(data, show, self.DECOM_MODE, self.INTE_LIST, self.REDECOM_LIST, self.VMD_PARAMS, self.FORECAST_LENGTH)
-        if self.TARGET is None: self.TARGET = df_redecom['target']
+        self.TARGET = df_redecom['target']
 
         # Forecast
         df_pred_result = pd.DataFrame(index = self.TARGET.index[-self.FORECAST_LENGTH:0]) # df for storing forecasting result
@@ -580,7 +584,7 @@ class keras_predictor:
                 if method=='respective': df = pd.DataFrame(df[imf]) # if method=='ensemble': df = df
             else: imf = imf[8:]
             df.rename(columns={imf: 'target'}, inplace=True)
-            df.name = predictor_name+'_of_'+imf+'_model.h5' # Save model
+            df.name = predictor_name+'_of_'+imf+'_model.keras' # Save model
             time1 = time.time()
             df_result = self.keras_predict(data=df, show_model=show, **kwargs) # the ensemble method with matrix input 
             time2 = time.time()
@@ -594,11 +598,11 @@ class keras_predictor:
 
         # Fitting 
         if not self.NEXT_DAY: 
-            df_pred_result['real'] = self.TARGET[-self.FORECAST_LENGTH:]
+            df_pred_result['real'] = df_redecom['target'][-self.FORECAST_LENGTH:]
             if self.FIT_METHOD == 'ensemble': # fitting method
                 print('Fitting of the ensemble method is running...')        
                 fitting_set = df_pred_result[[x for x in df_pred_result.columns if '-predict' in x]]
-                df_redecom.name = predictor_name+'_of_Fitting_model.h5' # Save model
+                df_redecom.name = predictor_name+'_of_Fitting_model.keras' # Save model
                 time1 = time.time()
                 df_result = self.keras_predict(data=df_redecom, show_model=show, fitting_set=fitting_set, **kwargs) # the ensemble method with matrix input 
                 time2 = time.time()
@@ -618,7 +622,7 @@ class keras_predictor:
                 for i in range(df_next_result.index.size): # add next_pred of each imf to fitting_set
                     point_row = df_next_result[i:i+1]
                     fitting_set[point_row['IMF'][0]][fitting_set_next_index] = point_row['next_pred'][0]
-                df_redecom.name = predictor_name+'_of_Fitting_model.h5' # Save model
+                df_redecom.name = predictor_name+'_of_Fitting_model.keras' # Save model
                 time1 = time.time()
                 df_result = self.keras_predict(data=df_redecom, show_model=show, fitting_set=fitting_set, **kwargs) # the ensemble method with matrix input 
                 time2 = time.time()
@@ -682,7 +686,7 @@ class keras_predictor:
         # Initialize 
         now = datetime.now()
         data = check_dataset(data, False, self.DECOM_MODE, self.REDECOM_LIST)
-        if self.TARGET is None: self.TARGET = data['target']
+        self.TARGET = data['target']
         
         if self.PATH is None: print('Do not set a PATH! It is recommended to set a PATH to prevent the loss of running results')
         if predict_method is None: raise ValueError("Please input a predict method! eg. 'single', 'ensemble', 'respective', 'hybrid'.")
@@ -743,7 +747,7 @@ class keras_predictor:
                            - ensemble: self.ensemble_keras_predict()
                            - respective: self.respective_keras_predict()
                            - hybrid: self.hybrid_keras_predict()
-        transfer_learning  - use transfer learning method, load previous model and continue training; save Keras model in .h5 file
+        transfer_learning  - use transfer learning method, load previous model and continue training; save Keras model in .keras file
         **kwargs           - any parameters of self.keras_predict()
 
         Output
@@ -764,7 +768,7 @@ class keras_predictor:
         if predict_method == 'Single': predictor_name = name_predictor(now, 'Rolling Single', 'Keras', self.KERAS_MODEL, None, None, False)
         else: predictor_name = name_predictor(now, 'Rolling '+predict_method, 'Keras', self.KERAS_MODEL, self.DECOM_MODE, self.REDECOM_LIST, False)
         
-        # Transfer Learning (save and load h5 model file)
+        # Transfer Learning (save and load keras model file)
         model, model_name = None, ''
         if transfer_learning: 
             print('Strat transfer Learning for Keras model.')
@@ -785,7 +789,7 @@ class keras_predictor:
             with self.HiddenPrints():
                 model_name = name_predictor(now, predict_method, 'Keras', self.KERAS_MODEL, self.DECOM_MODE, self.REDECOM_LIST, self.NEXT_DAY)
             from CEEMDAN_LSTM.data_preprocessor import redecom
-            if predict_method == 'Single': model = (model_name).replace('-','_').replace(' ','_')+'_model.h5'
+            if predict_method == 'Single': model = (model_name).replace('-','_').replace(' ','_')+'_model.keras'
             else:
                 df_redecom = None
                 if self.INTE_LIST is None: print('Warning! It is recommended to set INTE_LIST. Otherwise, a different number of decomposed IMFs per run may lead to errors.')
@@ -793,14 +797,14 @@ class keras_predictor:
                     if 'vmd' not in str(self.REDECOM_LIST).lower(): print('Warning! It is recommended to use VMD or OVMD in REDECOM_LIST. Otherwise, a different number of decomposed IMFs per run may lead to errors.')
                     model = pd.DataFrame(index=[0])
                     if predict_method == 'Ensemble': 
-                        model = (model_name).replace('-','_').replace(' ','_')+'_model.h5'
+                        model = (model_name).replace('-','_').replace(' ','_')+'_model.keras'
                         if self.REDECOM_LIST is not None: df_redecom, df_redecom_list = redecom(data, False, self.DECOM_MODE, self.INTE_LIST, self.REDECOM_LIST, self.FORECAST_LENGTH)
                     elif predict_method == 'Respective': 
                         df_redecom, df_redecom_list = redecom(data, False, self.DECOM_MODE, self.INTE_LIST, self.REDECOM_LIST, self.FORECAST_LENGTH)
-                        for imf in df_redecom.columns.difference(['target']): model[imf] = (model_name+'_of_'+imf+'_model.h5').replace('-','_').replace(' ','_')
+                        for imf in df_redecom.columns.difference(['target']): model[imf] = (model_name+'_of_'+imf+'_model.keras').replace('-','_').replace(' ','_')
                     elif predict_method == 'Hybrid': 
                         df_redecom, df_redecom_list = redecom(data, False, self.DECOM_MODE, self.INTE_LIST, self.REDECOM_LIST, self.FORECAST_LENGTH)
-                        for imf in eval(df_redecom.name.split('_')[0]): model[imf] = (model_name+'_of_'+imf+'_model.h5').replace('-','_').replace(' ','_')
+                        for imf in eval(df_redecom.name.split('_')[0]): model[imf] = (model_name+'_of_'+imf+'_model.keras').replace('-','_').replace(' ','_')
                     self.VMD_PARAMS = eval(df_redecom.name.split('_')[1])
                     if self.VMD_PARAMS is not None: print('Get vmd_params:', self.VMD_PARAMS)
 
